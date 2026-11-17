@@ -159,6 +159,31 @@ test can make moves, drop any player, kill the host mid-game, and assert the
 game is still consistent. Every new game should have a "kill the host at every
 step" test; it is a few lines.
 
+## Behaviour players can rely on
+
+These came out of fixing `uno-web` by hand. Here the platform provides them, so
+a game gets them without writing anything. Each is covered by a test.
+
+- **Reload returns you to where you were**: same seat, same lobby settings and
+  ready flag, same game state. True for the host, for a guest, and when
+  everyone reloads at once.
+- **Closing the tab and coming back works**, through the invite link or just
+  the game's page. The seat is kept per browser, not per tab.
+- **Leave means leave.** After pressing Leave, a reload shows the entry screen.
+- **The owner keeps the role through a reload.** Ownership passes on only after
+  the owner has been gone for 15 seconds, or has left.
+- **A turn timer keeps running** through reloads, disconnects and host changes,
+  and fires exactly once.
+- **A move is never applied twice and never silently lost**, including when it
+  was sent while the host was changing.
+- **Nobody can join a game in progress**; seated players can always come back.
+
+Not provided yet, and `uno-web` has them: animation cues that play for live
+moves but not when a state is restored, a "flaky" presence state between
+connected and disconnected, and toasts for connection lost and restored. Opening
+the same room in two tabs of one browser moves the seat to the newest tab, where
+`uno-web` treated each tab as a separate player.
+
 ## Compatibility
 
 A deployed relay will meet old cached clients. Three numbers guard this:

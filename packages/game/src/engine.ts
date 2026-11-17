@@ -13,6 +13,8 @@ export interface SessionState<S, C> {
   phase: Phase;
   players: LobbyPlayer[];
   ownerId: PlayerId | null;
+  /** Relay time at which the owner was first seen disconnected while others were present. */
+  ownerAwaySince?: number | null;
   config: C;
   game: S | null;
   /** State of the seeded generator (see createRandom). */
@@ -70,7 +72,18 @@ export function initialState<S, C>(game: AnyGame<S, C>, rng: number): SessionSta
 }
 
 /** Brings the player list and owner in line with who is in the room. Mutates `state`. */
-export function reconcile<S, C>(game: AnyGame<S, C>, state: SessionState<S, C>, peers: PeerInfo[]) {
+/**
+ * How long a disconnected owner keeps the role. A page reload is a disconnect of a second or two;
+ * without this the owner would lose Start and the settings every time they refreshed.
+ */
+export const OWNER_GRACE_MS = 15_000;
+
+export function reconcile<S, C>(
+  game: AnyGame<S, C>,
+  state: SessionState<S, C>,
+  peers: PeerInfo[],
+  now: number,
+) {
   const byId = new Map(peers.map((p) => [p.id, p]));
   if (state.phase === "lobby") {
     const before = new Map(state.players.map((p) => [p.id, p]));
@@ -81,11 +94,16 @@ export function reconcile<S, C>(game: AnyGame<S, C>, state: SessionState<S, C>, 
   }
   const connected = (id: PeerId) => byId.get(id)?.connected === true;
   const owner = state.players.find((p) => p.id === state.ownerId);
-  const orphaned =
-    !owner ||
-    (!connected(owner.id) && state.players.some((p) => p.id !== owner.id && connected(p.id)));
-  if (orphaned) {
+  const away =
+    owner !== undefined &&
+    !connected(owner.id) &&
+    state.players.some((p) => p.id !== owner.id && connected(p.id));
+  if (!away) state.ownerAwaySince = null;
+  else state.ownerAwaySince ??= now;
+  const expired = away && now - (state.ownerAwaySince as number) >= OWNER_GRACE_MS;
+  if (!owner || expired) {
     state.ownerId = (state.players.find((p) => connected(p.id)) ?? state.players[0])?.id ?? null;
+    state.ownerAwaySince = null;
   }
 }
 

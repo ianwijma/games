@@ -30,8 +30,32 @@ export interface GameShellProps {
   onCodeChange?(code: string | null): void;
 }
 
+/** The room this browser was last in, per game, so the game page leads back to it without the link. */
+const lastRoom = {
+  key: (gameId: string) => `games:last:${gameId}`,
+  get(gameId: string): string | null {
+    try {
+      return parseCode(localStorage.getItem(this.key(gameId)) ?? "");
+    } catch {
+      return null;
+    }
+  },
+  set(gameId: string, code: string | null) {
+    try {
+      if (code) localStorage.setItem(this.key(gameId), code);
+      else localStorage.removeItem(this.key(gameId));
+    } catch {
+      // storage unavailable: the invite link still works
+    }
+  },
+};
+
 export function GameShell({ game, relayUrl, initialCode, onCodeChange }: GameShellProps) {
-  const initial = initialCode ? parseCode(initialCode) : null;
+  const gameId = game.definition.id;
+  const fromLink = initialCode ? parseCode(initialCode) : null;
+  // Only on first render: later renders must not pick up a room entered in the meantime.
+  const [remembered] = useState(() => (fromLink ? null : lastRoom.get(gameId)));
+  const initial = fromLink ?? remembered;
   const [run, setRun] = useState<Run | null>(() =>
     initial && relayUrl ? { id: 0, name: "", op: { kind: "auto", code: initial } } : null,
   );
@@ -45,6 +69,9 @@ export function GameShell({ game, relayUrl, initialCode, onCodeChange }: GameShe
   };
   const exit = (message?: string, code?: string) => {
     setRun(null);
+    lastRoom.set(gameId, null);
+    // A remembered room that is gone (left, or expired) is forgotten quietly: nobody asked for it.
+    if (code && code === remembered) return;
     setError(message ?? null);
     if (code) setPrefill(code);
   };
@@ -134,6 +161,7 @@ function Active({
   // biome-ignore lint/correctness/useExhaustiveDependencies: `run` is constant for a mounted Active
   useEffect(() => {
     if (!code || run.op.kind === "local") return;
+    lastRoom.set(game.definition.id, code);
     latest.current.onCodeChange?.(code);
     return () => latest.current.onCodeChange?.(null);
   }, [code]);

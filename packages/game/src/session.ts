@@ -5,6 +5,7 @@ import type { Clock } from "@games/relay-core";
 import {
   initialState,
   MAX_REJECTS,
+  OWNER_GRACE_MS,
   reconcile,
   runDeadline,
   type SessionState,
@@ -100,6 +101,8 @@ interface HostState<S, C, V> {
   seq: number;
   /** Deadline last armed by this host instance; undefined = never (a new host always arms once). */
   alarm: number | null | undefined;
+  /** Time of the owner-grace alarm last armed by this host instance. */
+  ownerAlarm?: number | null;
   /** Our own views by seq. Applied only once the relay confirms the commit, so we never act on a state it did not store. */
   unconfirmed: [number, ViewMessage<V, C>][];
 }
@@ -214,7 +217,7 @@ export function createSession<S, A extends { type: string }, V, C>(
   const reconcileAndCommit = () => {
     if (!host || !client.room) return;
     const next = structuredClone(host.state);
-    reconcile(anyGame, next, client.room.peers);
+    reconcile(anyGame, next, client.room.peers, Math.floor(client.serverNow()));
     commit(next);
   };
 
@@ -256,6 +259,10 @@ export function createSession<S, A extends { type: string }, V, C>(
     if (typeof h.alarm === "number") client.setAlarm(`deadline:${h.alarm}`, null);
     const ok = due === null ? true : client.setAlarm(`deadline:${due}`, due);
     if (ok) h.alarm = due;
+    // Wake up when a disconnected owner's grace period ends, to pass the role on.
+    const ownerDue =
+      typeof state.ownerAwaySince === "number" ? state.ownerAwaySince + OWNER_GRACE_MS : null;
+    if (h.ownerAlarm !== ownerDue && client.setAlarm("owner", ownerDue)) h.ownerAlarm = ownerDue;
   };
 
   const handleAct = (from: PlayerId, n: number, action: unknown) => {
@@ -346,6 +353,7 @@ export function createSession<S, A extends { type: string }, V, C>(
     client.on("peer", () => reconcileAndCommit()),
     client.on("alarm", (id) => {
       if (id.startsWith("deadline:")) onDeadlineAlarm(Number(id.slice("deadline:".length)));
+      else if (id === "owner") reconcileAndCommit();
     }),
     client.on("committed", onCommitted),
     client.on("message", ({ from, d }) => {

@@ -444,10 +444,25 @@ describe("deadlines", () => {
 // -- owner and spectators --------------------------------------------------------
 
 describe("owner and spectators", () => {
-  it("passes ownership on when the owner drops", async () => {
+  it("keeps the owner through a reload or a short drop", async () => {
+    const table = await createTable(cards, { players: 3, seed: 1 });
+    await table.reload(0);
+    expect(table.sessions[0]?.getSnapshot().isOwner).toBe(true);
+    await table.disconnect(0);
+    await table.advance(10_000);
+    expect(table.sessions[1]?.getSnapshot().isOwner).toBe(false);
+    await table.reconnect(0);
+    await table.advance(60_000);
+    expect(table.sessions[0]?.getSnapshot().isOwner).toBe(true);
+    expect(table.sessions[1]?.getSnapshot().isOwner).toBe(false);
+  });
+
+  it("passes ownership on when the owner stays away", async () => {
     const table = await createTable(cards, { players: 3, seed: 1 });
     expect(table.sessions[0]?.getSnapshot().isOwner).toBe(true);
     await table.disconnect(0);
+    expect(table.sessions[1]?.getSnapshot().isOwner).toBe(false);
+    await table.advance(15_000);
     expect(table.sessions[1]?.getSnapshot().isOwner).toBe(true);
     expect(table.sessions[2]?.getSnapshot().players.map((p) => [p.isOwner, p.connected])).toEqual([
       [false, false],
