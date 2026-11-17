@@ -6,10 +6,10 @@ one development machine, and need repeating on the real server (see
 
 ## What gets deployed
 
-| Piece | What it is | Where | State it holds |
-|-------|-----------|-------|----------------|
-| **Site** | Static files from `apps/web/out` | Any static host or CDN | None |
-| **Relay** | One Node process, one container (`apps/relay/Dockerfile`) | Homelab, later a VPS | Rooms, in memory only |
+| Piece     | What it is                                                | Where                  | State it holds        |
+| --------- | --------------------------------------------------------- | ---------------------- | --------------------- |
+| **Site**  | Static files from `apps/web/out`                          | Any static host or CDN | None                  |
+| **Relay** | One Node process, one container (`apps/relay/Dockerfile`) | Homelab, later a VPS   | Rooms, in memory only |
 
 There is no database. The site can be served from anywhere. Everything below
 that concerns capacity is about the relay.
@@ -33,13 +33,13 @@ players ── WSS ───> relay.games.wij.ma ──> tunnel or reverse proxy
 
 ### Relay configuration
 
-| Variable | Production value | Why |
-|----------|-----------------|-----|
-| `PORT` | `8787` | |
-| `ALLOWED_ORIGINS` | `https://games.wij.ma` | Stops other sites using the relay from browsers |
-| `ALLOWED_GAMES` | the game ids we ship | Stops the relay being used for anything else |
-| `TRUST_PROXY` | `1` | Only behind exactly one proxy; needed for the per-IP cap to see real addresses |
-| `MAX_CONN_PER_IP` | `32` | Raise if many players share one address (a school, an office) |
+| Variable          | Production value       | Why                                                                            |
+| ----------------- | ---------------------- | ------------------------------------------------------------------------------ |
+| `PORT`            | `8787`                 |                                                                                |
+| `ALLOWED_ORIGINS` | `https://games.wij.ma` | Stops other sites using the relay from browsers                                |
+| `ALLOWED_GAMES`   | the game ids we ship   | Stops the relay being used for anything else                                   |
+| `TRUST_PROXY`     | `1`                    | Only behind exactly one proxy; needed for the per-IP cap to see real addresses |
+| `MAX_CONN_PER_IP` | `32`                   | Raise if many players share one address (a school, an office)                  |
 
 Also: open-file limit at least twice the expected socket count (one file per
 connection), a health check on `GET /healthz`, and a container memory limit of
@@ -83,10 +83,10 @@ client to the resulting view arriving back.
 every 5 seconds on average, which is brisk):
 
 | Rooms | Players | Relay memory | Relay CPU (one core) | Outbound traffic | Latency p50 / p99 |
-|------:|--------:|-------------:|---------------------:|-----------------:|------------------:|
-| 100 | 400 | 89 MB | 3% | 2 Mbit/s | 1.1 / 5.8 ms |
-| 1,000 | 4,000 | 151 MB | 10% | 20 Mbit/s | 0.6 / 1.3 ms |
-| 5,000 | 20,000 | 409 MB | 41% | 101 Mbit/s | 0.6 / 88 ms |
+| ----: | ------: | -----------: | -------------------: | ---------------: | ----------------: |
+|   100 |     400 |        89 MB |                   3% |         2 Mbit/s |      1.1 / 5.8 ms |
+| 1,000 |   4,000 |       151 MB |                  10% |        20 Mbit/s |      0.6 / 1.3 ms |
+| 5,000 |  20,000 |       409 MB |                  41% |       101 Mbit/s |       0.6 / 88 ms |
 
 A 10,000-room run did not finish connecting within the time limit on this
 machine, so there is no figure for it.
@@ -96,9 +96,9 @@ at 20 a second). The real-time runtime is not built; this is the relay carrying
 that traffic shape:
 
 | Rooms | Players | Relay memory | Relay CPU (one core) | Outbound traffic | Latency p50 / p99 |
-|------:|--------:|-------------:|---------------------:|-----------------:|------------------:|
-| 50 | 400 | 115 MB | 22% | 68 Mbit/s | 0.3 / 1.1 ms |
-| 200 | 1,600 | 129 MB | 82% | 270 Mbit/s | 1.9 / 5.5 ms |
+| ----: | ------: | -----------: | -------------------: | ---------------: | ----------------: |
+|    50 |     400 |       115 MB |                  22% |        68 Mbit/s |      0.3 / 1.1 ms |
+|   200 |   1,600 |       129 MB |                  82% |       270 Mbit/s |      1.9 / 5.5 ms |
 
 ### What the numbers say
 
@@ -123,22 +123,22 @@ the same moment, not rooms created per day.
 
 **Turn-based games**
 
-| Concurrent rooms | Players | CPU | Memory limit | Upload needed | Where |
-|-----------------:|--------:|-----|-------------:|--------------:|-------|
-| up to 50 | 200 | 1 shared vCPU | 256 MB | 2 Mbit/s | Homelab |
-| up to 500 | 2,000 | 1 vCPU | 512 MB | 20 Mbit/s | Homelab with a good uplink |
-| up to 2,000 | 8,000 | 1 dedicated vCPU | 1 GB | 80 Mbit/s | VPS |
-| up to 5,000 | 20,000 | 2 vCPU (relay + TLS proxy) | 2 GB | 200 Mbit/s | VPS |
-| more | | | | | Several relay processes, rooms routed by code (not built) |
+| Concurrent rooms | Players | CPU                        | Memory limit | Upload needed | Where                                                     |
+| ---------------: | ------: | -------------------------- | -----------: | ------------: | --------------------------------------------------------- |
+|         up to 50 |     200 | 1 shared vCPU              |       256 MB |      2 Mbit/s | Homelab                                                   |
+|        up to 500 |   2,000 | 1 vCPU                     |       512 MB |     20 Mbit/s | Homelab with a good uplink                                |
+|      up to 2,000 |   8,000 | 1 dedicated vCPU           |         1 GB |     80 Mbit/s | VPS                                                       |
+|      up to 5,000 |  20,000 | 2 vCPU (relay + TLS proxy) |         2 GB |    200 Mbit/s | VPS                                                       |
+|             more |         |                            |              |               | Several relay processes, rooms routed by code (not built) |
 
 **Real-time games** (in addition to the above)
 
-| Concurrent rooms | Players | CPU | Memory limit | Upload needed | Where |
-|-----------------:|--------:|-----|-------------:|--------------:|-------|
-| up to 10 | 80 | 1 shared vCPU | 256 MB | 30 Mbit/s | Homelab, friends only |
-| up to 50 | 400 | 1 dedicated vCPU | 512 MB | 150 Mbit/s | VPS |
-| up to 100 | 800 | 2 vCPU | 512 MB | 300 Mbit/s | VPS |
-| more | | | | | Several processes, and smaller snapshots first |
+| Concurrent rooms | Players | CPU              | Memory limit | Upload needed | Where                                          |
+| ---------------: | ------: | ---------------- | -----------: | ------------: | ---------------------------------------------- |
+|         up to 10 |      80 | 1 shared vCPU    |       256 MB |     30 Mbit/s | Homelab, friends only                          |
+|         up to 50 |     400 | 1 dedicated vCPU |       512 MB |    150 Mbit/s | VPS                                            |
+|        up to 100 |     800 | 2 vCPU           |       512 MB |    300 Mbit/s | VPS                                            |
+|             more |         |                  |              |               | Several processes, and smaller snapshots first |
 
 For a site played by friends and their friends, the first row of each table is
 the realistic one: the smallest container the homelab can give.
@@ -160,17 +160,17 @@ the realistic one: the smallest container the homelab can give.
 Sizing is only trusted once it is repeated where the relay will run. All of
 these use the same script.
 
-| Check | How | Pass when |
-|-------|-----|-----------|
-| **Capacity on the real server** | Run the load test on the server itself at the planned room count and at twice that | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors |
-| **Through the real network path** | From outside the home network: `loadtest -- --url wss://relay.games.wij.ma/ws --rooms 200` | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink. |
-| **Upload limit** | Raise `--rooms` over the internet until p99 climbs sharply | Note the room count; it is the real ceiling. Plan for half of it. |
-| **Memory leak** | `--seconds 3600` at a moderate room count | Relay memory is flat after the first minutes |
-| **Idle connections survive** | Open a room, do nothing for 10 minutes, then move | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it. |
-| **Proxy reload** | Reload the proxy config with a game open | The game continues after an automatic reconnect |
-| **Relay restart** | Restart the container with a game open | Clients show "disconnected" and a clear message; no hung tabs. (The room is lost; that is the known limit.) |
-| **Real phones** | Play one full game on mobile data, lock the phone for a minute mid-game | You are back in your seat when it unlocks |
-| **A real game's cost** | Once ONO is ported, record its actual state size and moves per minute and rerun with `--state-bytes` and `--move-ms` set to match | The specification table is updated with those figures |
+| Check                             | How                                                                                                                               | Pass when                                                                                                                |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Capacity on the real server**   | Run the load test on the server itself at the planned room count and at twice that                                                | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors                                      |
+| **Through the real network path** | From outside the home network: `loadtest -- --url wss://relay.games.wij.ma/ws --rooms 200`                                        | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink.                             |
+| **Upload limit**                  | Raise `--rooms` over the internet until p99 climbs sharply                                                                        | Note the room count; it is the real ceiling. Plan for half of it.                                                        |
+| **Memory leak**                   | `--seconds 3600` at a moderate room count                                                                                         | Relay memory is flat after the first minutes                                                                             |
+| **Idle connections survive**      | Open a room, do nothing for 10 minutes, then move                                                                                 | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it. |
+| **Proxy reload**                  | Reload the proxy config with a game open                                                                                          | The game continues after an automatic reconnect                                                                          |
+| **Relay restart**                 | Restart the container with a game open                                                                                            | Clients show "disconnected" and a clear message; no hung tabs. (The room is lost; that is the known limit.)              |
+| **Real phones**                   | Play one full game on mobile data, lock the phone for a minute mid-game                                                           | You are back in your seat when it unlocks                                                                                |
+| **A real game's cost**            | Once ONO is ported, record its actual state size and moves per minute and rerun with `--state-bytes` and `--move-ms` set to match | The specification table is updated with those figures                                                                    |
 
 When running the load test over the internet, the `MAX_CONN_PER_IP` cap applies
 to the machine running it. Raise the cap for the test and put it back after.
