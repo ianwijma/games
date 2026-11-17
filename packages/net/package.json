@@ -1,0 +1,25 @@
+{
+  "name": "@games/net",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@games/protocol": "workspace:*",
+    "@games/relay-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "ws": "catalog:",
+    "@types/ws": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

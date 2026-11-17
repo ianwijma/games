@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@source "../../../packages/react/src";
+/* A directory, not a glob: a glob here silently matched nothing and left boards unstyled. */
+@source "../../../games";
+
+:root {
+  color-scheme: light dark;
+}
