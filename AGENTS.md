@@ -7,6 +7,8 @@ multiplayer game quick to build. pnpm workspaces, Turborepo, TypeScript.
 
 - `docs/architecture.md`: how rooms, the host and the relay work, and why.
 - `games/README.md`: how to add a game. Most tasks here are this.
+- `docs/design.md`: how every screen should look and behave on a phone. Read
+  it before writing any UI.
 - `docs/limitations.md`: asset budget, known limits, what is not built yet.
 - `docs/game-catalog.md`: the games the core is designed for. Add a row there
   before adding a core feature.

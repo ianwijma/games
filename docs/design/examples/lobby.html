@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Design example: lobby</title>
+<link rel="stylesheet" href="table.css">
+<style>
+
+.lobby { display: grid; gap: clamp(12px, 3vw, 24px); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 820px) { .lobby { grid-template-columns: 1.3fr 1fr; } }
+.actions .btn.primary { flex: 1 1 100%; order: 3; }
+@media (min-width: 560px) { .actions .btn.primary { flex: none; order: 0; } }
+
+</style>
+</head>
+<body>
+<header class="bar"><a class="brand" href="overview.html">Games</a><span class="spacer"></span><span class="who">Playing as <strong>Ian</strong></span></header>
+<main class="table"><div class="felt">
+  <div class="row center" style="flex-direction:column; gap:10px">
+    <div class="felt-label">ONO · waiting for players</div>
+    <div class="plaque"><small>Invite code</small><strong>JS5RJQ</strong></div>
+    <div class="row center"><button type="button" class="btn small">Copy link</button><button type="button" class="btn small">Show QR</button></div>
+  </div>
+  <div class="lobby">
+    <section class="printed">
+      <div class="felt-label" style="margin-bottom:10px">Seats · 3 of 6</div>
+      <div class="seats">
+        <div class="seat"><div class="token" style="--c:var(--p1)">I</div><span class="tag">Ian · you</span><span class="state">Ready</span></div>
+        <div class="seat"><div class="token" style="--c:var(--p2)">S</div><span class="tag">Sam</span><span class="state">Ready</span></div>
+        <div class="seat"><div class="token" style="--c:var(--p3)">M</div><span class="tag">Mila</span><span class="state wait">Choosing…</span></div>
+        <div class="seat"><div class="token empty">+</div><span class="tag">Open</span></div>
+        <div class="seat"><div class="token empty">+</div><span class="tag">Open</span></div>
+        <div class="seat"><div class="token empty">+</div><span class="tag">Open</span></div>
+      </div>
+    </section>
+    <section class="paper slip">
+      <h2>House rules</h2>
+      <p class="muted" style="margin:2px 0 12px">Ian owns this table and can change these.</p>
+      <label for="t">Time per turn</label>
+      <select id="t"><option>30 seconds</option></select>
+      <label for="g" style="margin-top:10px">Play to</label>
+      <select id="g"><option>500 points</option></select>
+    </section>
+  </div>
+  <div class="row actions" style="margin-top:auto">
+    <button type="button" class="btn danger">Leave</button><span class="grow"></span>
+    <button type="button" class="btn">Not ready</button><button type="button" class="btn primary">Start game</button>
+  </div>
+</div></main>
+</body></html>

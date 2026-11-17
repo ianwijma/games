@@ -15,6 +15,7 @@ pnpm test
 
 - [Architecture](docs/architecture.md)
 - [Adding a game](games/README.md)
+- [Design: the table look](docs/design.md)
 - [Limitations and risks](docs/limitations.md)
 - [Game catalog: what the core is designed for](docs/game-catalog.md)
 - [Rules for contributors and agents](AGENTS.md)

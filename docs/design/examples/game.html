@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Design example: card table</title>
+<link rel="stylesheet" href="table.css">
+<style>
+
+body { overscroll-behavior: none; }
+.felt { --card-w: clamp(46px, 11vw, 74px); gap: 10px; }
+.opponents { display: flex; justify-content: space-around; gap: 8px; }
+.opponents .seat .fan { display: flex; } .opponents .fan .card { --card-w: 22px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.4); } .opponents .fan .card + .card { margin-left: -12px; }
+.middle { flex: 1; display: flex; align-items: center; justify-content: center; gap: clamp(16px, 6vw, 48px); min-height: 150px; }
+.status { align-self: center; padding: 6px 16px; border-radius: 99px; background: rgb(0 0 0 / 0.35); font-weight: 800; }
+.status b { color: var(--brass); }
+.hand { display: flex; justify-content: center; padding: 18px 6px 4px; overflow-x: auto; scrollbar-width: none; }
+.hand .card + .card { margin-left: calc(var(--card-w) * -0.34); }
+.mine { display: flex; align-items: center; gap: 10px; }
+.side { display: none; }
+.layout { display: flex; flex-direction: column; flex: 1; gap: 10px; } .play { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+@media (min-width: 900px) { .layout { display: grid; grid-template-columns: 1fr 230px; gap: 20px; } .side { display: block; align-self: start; } }
+.score { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--paper-edge); font-weight: 700; }
+
+</style>
+</head>
+<body>
+<header class="bar"><a class="brand" href="overview.html">Games</a><span class="spacer"></span><span class="who">Playing as <strong>Ian</strong></span></header>
+<main class="table"><div class="felt"><div class="layout">
+  <div class="play">
+    <div class="opponents">
+      <div class="seat"><div class="token" style="--c:var(--p2)">S</div><span class="tag">Sam</span><div class="fan"><div class="card back"></div><div class="card back"></div><div class="card back"></div><div class="card back"></div><div class="card back"></div></div></div>
+      <div class="seat"><div class="token turn" style="--c:var(--p3)">M</div><span class="tag">Mila · 0:21</span><div class="fan"><div class="card back"></div><div class="card back"></div><div class="card back"></div></div></div>
+      <div class="seat"><div class="token away" style="--c:var(--p4)">J</div><span class="tag">Jo · away</span><div class="fan"><div class="card back"></div><div class="card back"></div><div class="card back"></div><div class="card back"></div><div class="card back"></div><div class="card back"></div><div class="card back"></div></div></div>
+    </div>
+    <div class="middle">
+      <div style="text-align:center"><div class="pile"><div class="card back"></div><div class="card back"></div><div class="card back"></div></div><div class="felt-label" style="margin-top:10px">Draw</div></div>
+      <div style="text-align:center"><div class="pile"><div class="card" style="--c:var(--p2)"><i class="circle"></i><span>4</span></div><div class="card" style="--c:var(--p1);transform:rotate(6deg)"><i class="diamond"></i><span>4</span></div></div><div class="felt-label" style="margin-top:10px">Played</div></div>
+    </div>
+    <div class="status">Waiting for <b>Mila</b> · you are next</div>
+    <div class="hand">
+      <div class="card dim" style="--c:var(--p2)"><i class="circle"></i><span>9</span></div>
+      <div class="card playable" style="--c:var(--p1)"><i class="diamond"></i><span>2</span></div>
+      <div class="card dim" style="--c:var(--p3)"><i class="tri"></i><span>6</span></div>
+      <div class="card playable" style="--c:var(--p4)"><i></i><span>4</span></div>
+      <div class="card playable" style="--c:var(--p1)"><i class="diamond"></i><span>8</span></div>
+      <div class="card dim" style="--c:var(--p3)"><i class="tri"></i><span>1</span></div>
+      <div class="card dim" style="--c:var(--p2)"><i class="circle"></i><span>5</span></div>
+    </div>
+    <div class="mine"><div class="token" style="--c:var(--p1);width:40px;height:40px;font-size:1rem">I</div><strong>Ian · 7 cards</strong><span class="grow"></span><button type="button" class="btn small">Draw</button><button type="button" class="btn small primary">Call it!</button></div>
+  </div>
+  <aside class="paper slip side"><h2>Scores</h2><p class="muted" style="margin:2px 0 8px">First to 500</p>
+    <div class="score"><span>Sam</span><span>212</span></div><div class="score"><span>Ian</span><span>180</span></div><div class="score"><span>Mila</span><span>96</span></div><div class="score"><span>Jo</span><span>40</span></div>
+  </aside>
+</div></div></main>
+</body></html>
