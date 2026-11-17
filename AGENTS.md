@@ -37,6 +37,7 @@ pnpm dev                              # relay on :8787 and the site on :3000
 pnpm --filter @games/<name> test      # one package (preferred while working)
 pnpm --filter @games/<name> typecheck
 pnpm lint                             # biome; `pnpm format` fixes
+pnpm --filter @games/relay loadtest   # relay capacity; see docs/deployment.md
 pnpm test && pnpm typecheck && pnpm build   # everything; slow, run once before finishing
 ```
 
