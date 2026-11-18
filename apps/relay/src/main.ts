@@ -11,7 +11,7 @@ const allowedOrigins = list(env.ALLOWED_ORIGINS);
 const allowedGames = list(env.ALLOWED_GAMES);
 
 const relay = await startRelay({
-  port: Number(env.PORT ?? 8787),
+  port: Number(env.PORT ?? 6767),
   host: env.HOST ?? "0.0.0.0",
   ...(allowedOrigins && { allowedOrigins }),
   ...(allowedGames && { allowedGames }),

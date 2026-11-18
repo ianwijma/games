@@ -33,7 +33,7 @@ Imports go down this table only. A game imports `@games/game` and
 
 ```sh
 pnpm install
-pnpm dev                              # relay on :8787 and the site on :3000
+pnpm dev                              # relay on :6767 and the site on :3000
 pnpm --filter @games/<name> test      # one package (preferred while working)
 pnpm --filter @games/<name> typecheck
 pnpm lint                             # biome; `pnpm format` fixes

@@ -18,7 +18,7 @@ that concerns capacity is about the relay.
 
 ```
 players ── HTTPS ──> games.wij.ma          static site on a CDN (Cloudflare Pages or similar)
-players ── WSS ───> relay.games.wij.ma ──> tunnel or reverse proxy ──> relay container :8787
+players ── WSS ───> relay.games.wij.ma ──> tunnel or reverse proxy ──> relay container :6767
 ```
 
 - **Site on a CDN, not at home.** It is free at this size, it is fast
@@ -35,7 +35,7 @@ players ── WSS ───> relay.games.wij.ma ──> tunnel or reverse proxy
 
 | Variable          | Production value       | Why                                                                            |
 | ----------------- | ---------------------- | ------------------------------------------------------------------------------ |
-| `PORT`            | `8787`                 |                                                                                |
+| `PORT`            | `6767`                 |                                                                                |
 | `ALLOWED_ORIGINS` | `https://games.wij.ma` | Stops other sites using the relay from browsers                                |
 | `ALLOWED_GAMES`   | the game ids we ship   | Stops the relay being used for anything else                                   |
 | `TRUST_PROXY`     | `1`                    | Only behind exactly one proxy; needed for the per-IP cap to see real addresses |

@@ -31,7 +31,7 @@ const { values } = parseArgs({
     "snapshot-bytes": { type: "string", default: "1024" },
     seconds: { type: "string", default: "20" },
     url: { type: "string" },
-    port: { type: "string", default: "18787" },
+    port: { type: "string", default: "16767" },
   },
 });
 const mode = values.mode === "realtime" ? "realtime" : "turn";

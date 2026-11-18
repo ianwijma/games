@@ -9,7 +9,7 @@ disconnects, so the game continues.
 
 ```sh
 pnpm install
-pnpm dev        # relay on ws://localhost:8787/ws, site on http://localhost:3000
+pnpm dev        # relay on ws://localhost:6767/ws, site on http://localhost:3000
 pnpm test
 ```
 
@@ -27,7 +27,7 @@ pnpm test
   `apps/web/out`. Set `NEXT_PUBLIC_RELAY_URL` (for example
   `wss://relay.games.wij.ma/ws`) at build time.
 - **Relay:** `docker build -f apps/relay/Dockerfile -t games-relay .` from the
-  repo root. Environment: `PORT` (8787), `ALLOWED_ORIGINS` (comma-separated,
+  repo root. Environment: `PORT` (6767), `ALLOWED_ORIGINS` (comma-separated,
   set it in production), `ALLOWED_GAMES`, `MAX_CONN_PER_IP`, `TRUST_PROXY=1`
   when behind exactly one reverse proxy. The proxy must forward WebSocket
   upgrades on `/ws`. Health check: `GET /healthz`.

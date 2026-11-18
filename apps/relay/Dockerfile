@@ -16,10 +16,10 @@ COPY apps/relay apps/relay
 RUN pnpm --filter @games/relay build
 
 FROM node:22-alpine
-ENV NODE_ENV=production PORT=8787
+ENV NODE_ENV=production PORT=6767
 WORKDIR /app
 COPY --from=build /repo/apps/relay/dist/main.js ./main.js
 USER node
-EXPOSE 8787
+EXPOSE 6767
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:${PORT}/healthz >/dev/null || exit 1
 CMD ["node", "main.js"]
