@@ -12,14 +12,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@games/protocol": "workspace:*",
-    "@games/relay-core": "workspace:*"
+    "@games/protocol": "*",
+    "@games/relay-core": "*"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vitest": "catalog:",
-    "ws": "catalog:",
-    "@types/ws": "catalog:",
-    "@types/node": "catalog:"
+    "typescript": "5.9.3",
+    "vitest": "5.1.0",
+    "ws": "8.23.0",
+    "@types/ws": "8.18.2",
+    "@types/node": "^22.19.0"
   }
 }

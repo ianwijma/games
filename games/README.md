@@ -12,7 +12,7 @@ supplies rooms, lobby, ready/start, host migration, reconnects and timers. Read
    maxPlayers, defaultConfig, setup, apply, view, ... })`. Optional: `validateConfig`, `isOver`,
    `deadline` + `onDeadline` (turn timers).
 3. Write `src/game.test.ts` with `createTable` from `@games/game/testing` (see below). Run
-   `pnpm --filter @games/<name> test` until green. Do not start on the UI before this passes.
+   `npm test -w @games/<name>` until green. Do not start on the UI before this passes.
 4. Write `src/Board.tsx` (`"use client"`, props `GameProps<Action, View, Config>` from
    `@games/react`) and, if the game has settings, `src/Settings.tsx`.
 5. `src/index.ts` exports a `GameModule` (definition, title, description, Board, Settings). Keep the
@@ -20,7 +20,7 @@ supplies rooms, lobby, ready/start, host migration, reconnects and timers. Read
 6. Register it in the web app, in two places: `apps/web/src/catalog.ts` (slug, title,
    description; plain strings) and `apps/web/src/games.ts` (a dynamic `import()`). Add
    `@games/<name>` to `apps/web/package.json` dependencies and to `transpilePackages` in
-   `apps/web/next.config.ts`, then `pnpm install`.
+   `apps/web/next.config.ts`, then `npm install`.
 
 ## Rules
 

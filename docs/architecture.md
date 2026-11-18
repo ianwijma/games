@@ -197,7 +197,7 @@ A deployed relay will meet old cached clients. Three numbers guard this:
 
 | Decision                                             | Reason                                                                                                                                                                    |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pnpm workspaces + Turborepo                          | Catalogs keep one version of each dependency across all games. Turbo caches and runs only what changed.                                                                   |
+| npm workspaces + Turborepo                           | npm ships with Node, so there is nothing extra to install. A CI check keeps one version of each dependency across all games. Turbo caches and runs only what changed.     |
 | TypeScript 5.9, not 7.0                              | 7.0 is weeks old. All three existing repos and Next 16.4 are on 5.x.                                                                                                      |
 | Packages as source, no package builds                | Least configuration, nothing stale. Revisit if type-checking gets slow.                                                                                                   |
 | One Next.js app with a route per game, static export | Simplest for 10-30 small games. A game is a plain React package, so moving a heavy one to its own app later is cheap.                                                     |

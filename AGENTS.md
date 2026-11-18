@@ -1,7 +1,7 @@
 # Working in this repo
 
 Monorepo for the games on games.wij.ma and the shared libraries that make a
-multiplayer game quick to build. pnpm workspaces, Turborepo, TypeScript.
+multiplayer game quick to build. npm workspaces, Turborepo, TypeScript.
 
 ## Read before you change anything
 
@@ -32,14 +32,14 @@ Imports go down this table only. A game imports `@games/game` and
 ## Commands
 
 ```sh
-pnpm install
-pnpm dev                              # relay on :6767 and the site on :3000
-pnpm --filter @games/<name> test      # one package (preferred while working)
-pnpm --filter @games/<name> typecheck
-pnpm lint                             # biome; `pnpm format` fixes
-pnpm --filter @games/relay loadtest   # relay capacity; see docs/deployment.md
-pnpm --filter @games/relay ramp       # add rooms until the relay fails
-pnpm test && pnpm typecheck && pnpm build   # everything; slow, run once before finishing
+npm install
+npm run dev                              # relay on :6767 and the site on :3000
+npm test -w @games/<name>      # one package (preferred while working)
+npm run typecheck -w @games/<name>
+npm run lint                             # biome; `npm run format` fixes
+npm run loadtest -w @games/relay   # relay capacity; see docs/deployment.md
+npm run ramp -w @games/relay       # add rooms until the relay fails
+npm test && npm run typecheck && npm run build   # everything; slow, run once before finishing
 ```
 
 ## Rules
@@ -47,8 +47,9 @@ pnpm test && pnpm typecheck && pnpm build   # everything; slow, run once before 
 - Packages are consumed as TypeScript source (`exports` point at `src/`). Do not
   add build steps to packages. Use extensionless relative imports and
   `import type` for types.
-- Dependencies: versions live in the `catalog:` of `pnpm-workspace.yaml`. Add
-  the version there and reference it as `"catalog:"`. `protocol`, `relay-core`,
+- Dependencies: every package that uses a dependency must name the same exact
+  version of it. `node scripts/check-versions.mjs` enforces it in CI. Declare
+  what you import; npm lets undeclared imports work by accident. `protocol`, `relay-core`,
   `net` and `game` take no runtime dependencies.
 - Game rules are pure and deterministic. No `Math.random()`, `Date.now()`,
   timers or I/O in `setup`, `apply`, `view` or `onDeadline`.

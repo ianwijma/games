@@ -8,9 +8,9 @@ a small relay server passes messages and picks a new host if that player
 disconnects, so the game continues.
 
 ```sh
-pnpm install
-pnpm dev        # relay on ws://localhost:6767/ws, site on http://localhost:3000
-pnpm test
+npm install
+npm run dev        # relay on ws://localhost:6767/ws, site on http://localhost:3000
+npm test
 ```
 
 - [Architecture](docs/architecture.md)
@@ -23,7 +23,7 @@ pnpm test
 
 ## Deploying
 
-- **Site:** `pnpm --filter @games/web build` writes static files to
+- **Site:** `npm run build -w @games/web` writes static files to
   `apps/web/out`. Set `NEXT_PUBLIC_RELAY_URL` (for example
   `wss://relay.games.wij.ma/ws`) at build time.
 - **Relay:** `docker build -f apps/relay/Dockerfile -t games-relay .` from the

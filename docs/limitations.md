@@ -84,13 +84,15 @@ Policy:
   consumes it, and type-checking is not cached per package the way a build
   would be **(checked, [internal packages](https://turborepo.dev/docs/core-concepts/internal-packages))**.
   Acceptable at this size.
-- **Turbopack and pnpm.** Turbopack does not resolve files outside the workspace
-  root. pnpm's global virtual store, which makes extra worktrees nearly free on
-  disk, places packages outside it
-  **(checked, [turbopack config](https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack),
-  [pnpm worktrees](https://pnpm.io/git-worktrees))**.
-  The global virtual store is therefore not enabled. Each worktree has a normal
-  `node_modules` of hard links, which is cheap but not free.
+- **npm workspaces.** Chosen because npm ships with Node. Two costs. Every
+  dependency is hoisted to the root `node_modules`, so a package can import
+  something it never declared and it works until that package is built alone
+  (the relay's Docker image, a split-out game). And each worktree gets a full
+  copy of `node_modules`, about 500 MB, where pnpm would share one store.
+  Also: npm 9 and 10 crash when resolving this dependency tree from scratch
+  ("Cannot read properties of null (reading 'edgesOut')", seen 2026-11-18).
+  Installing from the committed `package-lock.json` works on all of them. If
+  the lockfile ever has to be regenerated, use `npx npm@11 install`.
 - **Shallow CI checkouts** make `turbo --affected` treat everything as changed.
   Use full history with `filter: blob:none`
   **(checked, [turbo run](https://turborepo.dev/docs/reference/run))**.
@@ -168,8 +170,9 @@ them.
 - **Shared library changes ripple.** A change in `game` or `react` can break
   every game. Each game needs at least one test that plays a full round through
   the test harness, and CI must run tests for everything affected.
-- **Dependency drift.** Every shared dependency is pinned once in the pnpm
-  catalog, in strict mode, so a game cannot quietly bring its own React.
+- **Dependency drift.** Every package must name the same exact version of a
+  shared dependency. `scripts/check-versions.mjs` fails CI otherwise, so a game
+  cannot quietly bring its own React.
 - **Root config edits** (`tsconfig.base.json`, `turbo.json`, the lockfile)
   invalidate every cached task. Expect a full rebuild after them.
 - **`uno-web` warns that Next 16.4 differs from what models remember.** Agents

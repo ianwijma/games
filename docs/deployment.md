@@ -75,7 +75,7 @@ demand, not automatically, because of point 3.
 
 ### Measured
 
-Run with `pnpm --filter @games/relay loadtest` on 2026-11-18. One relay
+Run with `npm run loadtest -w @games/relay` on 2026-11-18. One relay
 process, real WebSocket clients, all on one machine (Ryzen 9 7945HX), over
 loopback, no TLS and no proxy. Latency is from a player's move leaving the
 client to the resulting view arriving back.
@@ -103,7 +103,7 @@ that traffic shape:
 
 ### Where it breaks
 
-Run with `pnpm --filter @games/relay ramp` on 2026-11-18, same machine and
+Run with `npm run ramp -w @games/relay` on 2026-11-18, same machine and
 conditions. The ramp adds rooms in steps, each step from its own client
 process, until connections fail or latency passes one second.
 

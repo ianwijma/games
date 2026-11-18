@@ -2,10 +2,10 @@
  * Load test for the relay. Starts the built relay as a separate process, fills it with rooms of
  * real WebSocket clients, plays for a while, and reports the relay's memory, CPU and latency.
  *
- *   pnpm --filter @games/relay build
- *   pnpm --filter @games/relay loadtest -- --rooms 1000 --players 4
- *   pnpm --filter @games/relay loadtest -- --mode realtime --rooms 100 --players 8
- *   pnpm --filter @games/relay loadtest -- --url wss://relay.example/ws --rooms 200   (a deployed relay)
+ *   npm run build -w @games/relay
+ *   npm run loadtest -w @games/relay -- --rooms 1000 --players 4
+ *   npm run loadtest -w @games/relay -- --mode realtime --rooms 100 --players 8
+ *   npm run loadtest -w @games/relay -- --url wss://relay.example/ws --rooms 200   (a deployed relay)
  *
  * With --url the relay is not started here, so only latency and throughput are reported; read
  * memory and CPU on the server. Linux only for the process figures (/proc).
@@ -16,7 +16,7 @@ import { parseArgs } from "node:util";
 import { PROTOCOL_VERSION } from "@games/protocol";
 import { WebSocket } from "ws";
 
-// pnpm passes a literal "--" through; drop it so both `ramp --x` and `ramp -- --x` work.
+// Some runners pass a literal "--" through; drop it so the options still parse.
 const argv = process.argv.slice(2).filter((a) => a !== "--");
 const { values } = parseArgs({
   args: argv,

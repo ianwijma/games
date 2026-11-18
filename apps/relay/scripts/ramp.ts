@@ -3,10 +3,10 @@
  * relay stops coping, and prints one line per step. Finds the breaking point; `loadtest.ts`
  * measures a fixed load.
  *
- *   pnpm --filter @games/relay build
- *   pnpm --filter @games/relay ramp                      (turn-based rooms, a move every 5 s)
- *   pnpm --filter @games/relay ramp -- --move-ms 0       (idle connections only)
- *   pnpm --filter @games/relay ramp -- --url wss://relay.example/ws --step 50
+ *   npm run build -w @games/relay
+ *   npm run ramp -w @games/relay                      (turn-based rooms, a move every 5 s)
+ *   npm run ramp -w @games/relay -- --move-ms 0       (idle connections only)
+ *   npm run ramp -w @games/relay -- --url wss://relay.example/ws --step 50
  *
  * Each step runs in its own client process, so the clients are not the bottleneck. Stops when
  * connections fail, p99 latency passes --max-p99, the relay dies, or --max-rooms is reached.
@@ -18,7 +18,7 @@ import { parseArgs } from "node:util";
 import { PROTOCOL_VERSION } from "@games/protocol";
 import { WebSocket } from "ws";
 
-// pnpm passes a literal "--" through; drop it so both `ramp --x` and `ramp -- --x` work.
+// Some runners pass a literal "--" through; drop it so the options still parse.
 const argv = process.argv.slice(2).filter((a) => a !== "--");
 const { values } = parseArgs({
   args: argv,
