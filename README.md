@@ -28,6 +28,6 @@ pnpm test
   `wss://relay.games.wij.ma/ws`) at build time.
 - **Relay:** `docker build -f apps/relay/Dockerfile -t games-relay .` from the
   repo root. Environment: `PORT` (6767), `ALLOWED_ORIGINS` (comma-separated,
-  set it in production), `ALLOWED_GAMES`, `MAX_CONN_PER_IP`, `TRUST_PROXY=1`
+  set it in production), `ALLOWED_GAMES`, `MAX_CONN_PER_IP`, `MAX_ROOMS`, `TRUST_PROXY=1`
   when behind exactly one reverse proxy. The proxy must forward WebSocket
   upgrades on `/ws`. Health check: `GET /healthz`.

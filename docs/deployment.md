@@ -40,6 +40,7 @@ players ── WSS ───> relay.games.wij.ma ──> tunnel or reverse proxy
 | `ALLOWED_GAMES`   | the game ids we ship   | Stops the relay being used for anything else                                   |
 | `TRUST_PROXY`     | `1`                    | Only behind exactly one proxy; needed for the per-IP cap to see real addresses |
 | `MAX_CONN_PER_IP` | `32`                   | Raise if many players share one address (a school, an office)                  |
+| `MAX_ROOMS`       | `10000` (the default)  | New rooms are refused with "server full" beyond this                           |
 
 Also: open-file limit at least twice the expected socket count (one file per
 connection), a health check on `GET /healthz`, and a container memory limit of
@@ -100,6 +101,44 @@ that traffic shape:
 |    50 |     400 |       115 MB |                  22% |        68 Mbit/s |      0.3 / 1.1 ms |
 |   200 |   1,600 |       129 MB |                  82% |       270 Mbit/s |      1.9 / 5.5 ms |
 
+### Where it breaks
+
+Run with `pnpm --filter @games/relay ramp` on 2026-11-18, same machine and
+conditions. The ramp adds rooms in steps, each step from its own client
+process, until connections fail or latency passes one second.
+
+**Turn-based rooms being played** (4 players, 8 KB state, a move every 5 s,
+1,000 rooms added per step):
+
+|  Rooms | Players | Relay memory | Relay CPU | Outbound traffic | p99 latency | Result                                                                 |
+| -----: | ------: | -----------: | --------: | ---------------: | ----------: | ---------------------------------------------------------------------- |
+|  5,000 |  20,000 |       390 MB |       34% |       102 Mbit/s |        2 ms | Fine                                                                   |
+| 10,000 |  40,000 |       577 MB |       78% |       204 Mbit/s |        5 ms | Fine                                                                   |
+| 13,000 |  52,000 |       685 MB |      109% |       263 Mbit/s |       14 ms | Fine, but the main thread is nearly full                               |
+| 16,000 |  64,000 |       801 MB |      131% |       327 Mbit/s |       36 ms | Last step that held. New players took 10 s to get in.                  |
+| 17,000 |       — |       841 MB |      151% |                — |    1,760 ms | **Failed**: 229 players could not join within 20 s, median move 381 ms |
+
+CPU above 100% is the relay's main thread at its limit plus garbage collection
+and network threads. Before the failure, single steps at 3,000, 6,000, 11,000
+and 15,000 rooms showed a p99 of 115 to 929 ms while the next step's clients
+were connecting, so a burst of joins is felt by players already in a game.
+
+**Idle connections** (rooms open, nobody moving, 2,500 rooms added per step):
+260,000 connections in 65,000 rooms held with no failures at 1.4 GB of relay
+memory, about 5 KB per connection. The step after that stalled and the test was
+stopped by its time limit without reporting why, so the idle ceiling is "at
+least 260,000", and the cause of the stall is not known.
+
+What this means:
+
+- **The limit is CPU on one thread, reached at about 16,000 active turn-based
+  rooms**, long after a home uplink would have run out.
+- **The default room cap of 10,000 sits below the breaking point**, at 78% CPU.
+  That is a sensible place for it. Raise `MAX_ROOMS` only with these numbers
+  repeated on the real server.
+- **It fails softly**: joins slow down and time out; rooms already playing kept
+  going and no connection was dropped.
+
 ### What the numbers say
 
 - **Memory is not the constraint.** About 65 MB for the empty process plus
@@ -158,13 +197,13 @@ the realistic one: the smallest container the homelab can give.
 ## Validating
 
 Sizing is only trusted once it is repeated where the relay will run. All of
-these use the same script.
+these use the load test (a fixed load) or the ramp (add rooms until it fails).
 
 | Check                             | How                                                                                                                               | Pass when                                                                                                                |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **Capacity on the real server**   | Run the load test on the server itself at the planned room count and at twice that                                                | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors                                      |
 | **Through the real network path** | From outside the home network: `loadtest -- --url wss://relay.games.wij.ma/ws --rooms 200`                                        | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink.                             |
-| **Upload limit**                  | Raise `--rooms` over the internet until p99 climbs sharply                                                                        | Note the room count; it is the real ceiling. Plan for half of it.                                                        |
+| **Upload limit**                  | `ramp -- --url wss://relay.games.wij.ma/ws --step 50` from outside                                                                | Note the room count; it is the real ceiling. Plan for half of it.                                                        |
 | **Memory leak**                   | `--seconds 3600` at a moderate room count                                                                                         | Relay memory is flat after the first minutes                                                                             |
 | **Idle connections survive**      | Open a room, do nothing for 10 minutes, then move                                                                                 | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it. |
 | **Proxy reload**                  | Reload the proxy config with a game open                                                                                          | The game continues after an automatic reconnect                                                                          |

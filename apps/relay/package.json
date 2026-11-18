@@ -8,6 +8,7 @@
     "start": "node dist/main.js",
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/main.js --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\"",
     "loadtest": "tsx scripts/loadtest.ts",
+    "ramp": "tsx scripts/ramp.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

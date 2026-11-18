@@ -16,7 +16,10 @@ import { parseArgs } from "node:util";
 import { PROTOCOL_VERSION } from "@games/protocol";
 import { WebSocket } from "ws";
 
+// pnpm passes a literal "--" through; drop it so both `ramp --x` and `ramp -- --x` work.
+const argv = process.argv.slice(2).filter((a) => a !== "--");
 const { values } = parseArgs({
+  args: argv,
   options: {
     mode: { type: "string", default: "turn" },
     rooms: { type: "string", default: "100" },

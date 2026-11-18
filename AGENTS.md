@@ -38,6 +38,7 @@ pnpm --filter @games/<name> test      # one package (preferred while working)
 pnpm --filter @games/<name> typecheck
 pnpm lint                             # biome; `pnpm format` fixes
 pnpm --filter @games/relay loadtest   # relay capacity; see docs/deployment.md
+pnpm --filter @games/relay ramp       # add rooms until the relay fails
 pnpm test && pnpm typecheck && pnpm build   # everything; slow, run once before finishing
 ```
 

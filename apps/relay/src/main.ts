@@ -17,6 +17,7 @@ const relay = await startRelay({
   ...(allowedGames && { allowedGames }),
   ...(env.MAX_CONN_PER_IP && { maxConnectionsPerIp: Number(env.MAX_CONN_PER_IP) }),
   trustProxy: env.TRUST_PROXY === "1",
+  ...(env.MAX_ROOMS && { hub: { maxRooms: Number(env.MAX_ROOMS) } }),
 });
 
 console.log(
