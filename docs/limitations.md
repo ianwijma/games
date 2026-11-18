@@ -88,7 +88,7 @@ Policy:
   dependency is hoisted to the root `node_modules`, so a package can import
   something it never declared and it works until that package is built alone
   (the relay's Docker image, a split-out game). And each worktree gets a full
-  copy of `node_modules`, about 500 MB, where pnpm would share one store.
+  copy of `node_modules`, about 830 MB, where pnpm would share one store.
   Also: npm 9 and 10 crash when resolving this dependency tree from scratch
   ("Cannot read properties of null (reading 'edgesOut')", seen 2026-11-18).
   Installing from the committed `package-lock.json` works on all of them. If
@@ -183,9 +183,12 @@ them.
 
 - **ONO.** Changing the name is necessary but not sufficient. The card faces,
   colours-and-symbols look and the exact card set of the commercial game are
-  also protected. A shedding card game in the same family with its own name,
-  its own card design and its own rule set is fine. The rules engine in
-  `uno-web` can be ported; the look should be original.
+  also protected. Our card faces are designed in `design.md` ("ONO card
+  faces"): own suits, shapes, symbols and card names. The rules engine in
+  `uno-web` can be ported. Two things remain: the name "ONO" is one letter from
+  the original, so the wordmark must look nothing like it and a more distinct
+  name is the safer choice before going public; and the deck should not be the
+  original's exact 108-card list.
 - **Soap Tank.** `open-bubble-tank` describes itself as a reconstruction of a
   specific commercial game, with tooling that imports the original game file.
   A new name does not change what it is. To live on this platform it needs to

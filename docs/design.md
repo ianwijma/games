@@ -154,6 +154,36 @@ physical object.
 - **Sound is off until the player turns it on**, and every game uses the same
   toggle.
 
+## ONO card faces
+
+The first real game's cards, built on the rules above. Open
+[`design/examples/cards.html`](design/examples/cards.html) to see them live.
+Each card is one inline SVG, so it scales to any size and needs no image files.
+
+| Desktop                            | Phone                            |
+| ---------------------------------- | -------------------------------- |
+| ![](design/img/cards-desktop.webp) | ![](design/img/cards-phone.webp) |
+
+ONO is a shedding game: match the suit or the number, first to empty their hand
+wins. That family of rules is centuries old and free to use. The look is ours:
+
+- **Paper cards, not coloured cards.** A cream face with a thin frame in the
+  suit colour, like a traditional playing card.
+- **Four suits with names and shapes**: Ember (coral diamond), Tide (blue
+  circle), Sun (amber triangle), Dusk (violet square). The shape sits under the
+  number in the corner and carries the number in the middle.
+- **The corner is the card.** Number or symbol, then the suit shape, in dark ink
+  for contrast on every suit. 6 and 9 are underlined. It reads from a 28 px
+  strip in a fanned hand.
+- **Action cards have our own names and symbols**: Hop (the next player misses a
+  turn), Turn (play changes direction), Take 2. The name is printed on the card.
+- **Any-suit cards are dark** and show all four suit shapes: Any, and Any +4.
+- **The back** is a burgundy lattice with a brass ring holding the four shapes.
+
+Still open: the wordmark for the game's box and title screen, and whether ONO
+gets one or two cards of its own that no other game has, which would do more
+for its identity than any styling.
+
 ## When a game leaves the table
 
 Some games are not table games. A real-time arena game needs the whole screen
