@@ -1,6 +1,6 @@
 # games
 
-Monorepo for the games on games.wij.ma, plus the shared libraries that make
+Monorepo for the games on games.wijma.cloud, plus the shared libraries that make
 multiplayer (and single-player) games quick to build.
 
 Players join a room with an invite code. One player's browser hosts the game;
@@ -23,11 +23,10 @@ npm test
 
 ## Deploying
 
-- **Site:** `npm run build -w @games/web` writes static files to
-  `apps/web/out`. Set `NEXT_PUBLIC_RELAY_URL` (for example
-  `wss://relay.games.wij.ma/ws`) at build time.
-- **Relay:** `docker build -f apps/relay/Dockerfile -t games-relay .` from the
-  repo root. Environment: `PORT` (6767), `ALLOWED_ORIGINS` (comma-separated,
-  set it in production), `ALLOWED_GAMES`, `MAX_CONN_PER_IP`, `MAX_ROOMS`, `TRUST_PROXY=1`
-  when behind exactly one reverse proxy. The proxy must forward WebSocket
-  upgrades on `/ws`. Health check: `GET /healthz`.
+Both the site and the relay run in a homelab k3s cluster behind a Cloudflare
+Tunnel, as `https://games.wijma.cloud` and `wss://games-relay.wijma.cloud/ws`.
+Each push to `develop` that passes CI publishes `ghcr.io/ianwijma/games-web`
+and `ghcr.io/ianwijma/games-relay`, tagged `sha-<short sha>`; the homelab repo
+pins those tags. See [Deployment and sizing](docs/deployment.md) for the
+images, the relay's environment variables (`ALLOWED_ORIGINS`,
+`CLIENT_IP_HEADER`, `TRUST_PROXY`, ...) and why a relay deploy ends every room.

@@ -1,6 +1,6 @@
 # Working in this repo
 
-Monorepo for the games on games.wij.ma and the shared libraries that make a
+Monorepo for the games on games.wijma.cloud and the shared libraries that make a
 multiplayer game quick to build. npm workspaces, Turborepo, TypeScript.
 
 ## Read before you change anything

@@ -48,6 +48,17 @@ class TestClient {
   }
 }
 
+/** Opens a socket with extra request headers; resolves "open" or the HTTP status it was refused with. */
+function connectWith(port: number, headers: Record<string, string>): Promise<"open" | number> {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers });
+  sockets.push(ws);
+  return new Promise((resolve) => {
+    ws.once("open", () => resolve("open"));
+    ws.on("unexpected-response", (_req, res) => resolve(res.statusCode ?? 0));
+    ws.on("error", () => {});
+  });
+}
+
 const base = { v: PROTOCOL_VERSION, game: "test", gameVersion: 1 };
 
 describe("relay server", () => {
@@ -128,6 +139,45 @@ describe("relay server", () => {
       second.on("error", () => {});
     });
     expect(status).toBe(429);
+  });
+
+  it("counts the per-IP cap by clientIpHeader when set", async () => {
+    relay = await startRelay({
+      port: 0,
+      host: "127.0.0.1",
+      maxConnectionsPerIp: 1,
+      clientIpHeader: "CF-Connecting-IP",
+      trustProxy: 1,
+    });
+    // Behind the tunnel every request has the same last X-Forwarded-For entry (cloudflared).
+    const via = (ip: string) => ({
+      "cf-connecting-ip": ip,
+      "x-forwarded-for": `${ip}, 10.42.0.40`,
+    });
+    expect(await connectWith(relay.port, via("203.0.113.1"))).toBe("open");
+    expect(await connectWith(relay.port, via("203.0.113.2"))).toBe("open");
+    expect(await connectWith(relay.port, via("203.0.113.1"))).toBe(429);
+    // Without the header it falls back to X-Forwarded-For (here: one proxy, the last entry).
+    expect(await connectWith(relay.port, { "x-forwarded-for": "10.42.0.41" })).toBe("open");
+    expect(await connectWith(relay.port, { "x-forwarded-for": "x, 10.42.0.41" })).toBe(429);
+  });
+
+  it("takes the trustProxy-th X-Forwarded-For entry from the right", async () => {
+    relay = await startRelay({ port: 0, host: "127.0.0.1", maxConnectionsPerIp: 1, trustProxy: 2 });
+    const xff = (value: string) => ({ "x-forwarded-for": value });
+    expect(await connectWith(relay.port, xff("203.0.113.1, 10.42.0.40"))).toBe("open");
+    expect(await connectWith(relay.port, xff("203.0.113.2, 10.42.0.40"))).toBe("open");
+    // A client-supplied entry on the left does not change who it is.
+    expect(await connectWith(relay.port, xff("1.2.3.4, 203.0.113.1, 10.42.0.40"))).toBe(429);
+    // Fewer entries than proxies: none are trusted, the socket address (127.0.0.1) counts.
+    expect(await connectWith(relay.port, xff("10.42.0.40"))).toBe("open");
+    expect(await connectWith(relay.port, {})).toBe(429);
+  });
+
+  it("uses the socket address by default, ignoring X-Forwarded-For", async () => {
+    relay = await startRelay({ port: 0, host: "127.0.0.1", maxConnectionsPerIp: 1 });
+    expect(await connectWith(relay.port, { "x-forwarded-for": "203.0.113.1" })).toBe("open");
+    expect(await connectWith(relay.port, { "x-forwarded-for": "203.0.113.2" })).toBe(429);
   });
 
   it("serves /healthz", async () => {

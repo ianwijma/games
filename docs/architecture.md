@@ -41,7 +41,7 @@ its own browser memory. See [limitations.md](limitations.md).
 ```
 apps/
   relay/        Node process: WebSocket + health endpoint around relay-core
-  web/          The site (games.wij.ma). Next.js, static export. Mounts games.
+  web/          The site (games.wijma.cloud). Next.js, static export. Mounts games.
 packages/
   protocol/     Wire types, limits, validation, encode/decode. No dependencies.
   relay-core/   Rooms, host election, checkpoints, alarms. Pure logic, no I/O.

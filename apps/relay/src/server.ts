@@ -14,10 +14,17 @@ export interface RelayOptions {
   allowedGames?: string[];
   maxConnectionsPerIp?: number;
   /**
-   * Take the client IP from the last X-Forwarded-For entry (the one your proxy appended; earlier
-   * entries are client-controlled). Only behind exactly one proxy you control.
+   * Read the client IP verbatim from this request header (for example `cf-connecting-ip`). Only
+   * safe when every request reaches the relay through a proxy that sets the header, because a
+   * client can send it too. Takes precedence over `trustProxy`.
    */
-  trustProxy?: boolean;
+  clientIpHeader?: string;
+  /**
+   * Number of proxies you control in front of the relay, each appending to X-Forwarded-For. The
+   * client IP is the entry that many places from the right; entries further left are
+   * client-controlled. 0 (the default) uses the socket address.
+   */
+  trustProxy?: number;
   hub?: HubOptions;
 }
 
@@ -57,14 +64,26 @@ export async function startRelay(options: RelayOptions = {}): Promise<RunningRel
     perMessageDeflate: false,
   });
 
+  const ipHeader = options.clientIpHeader?.toLowerCase();
+  const hops = options.trustProxy ?? 0;
+  if (!Number.isInteger(hops) || hops < 0) throw new Error(`trustProxy must be >= 0: ${hops}`);
+
   function clientIp(req: IncomingMessage): string {
-    if (options.trustProxy) {
+    if (ipHeader) {
+      const value = req.headers[ipHeader];
+      const ip = (Array.isArray(value) ? value[0] : value)?.trim();
+      if (ip) return ip;
+    }
+    if (hops > 0) {
+      // Node joins repeated X-Forwarded-For headers with ", ", so this is one list.
       const forwarded = req.headers["x-forwarded-for"];
-      const last = (Array.isArray(forwarded) ? forwarded.at(-1) : forwarded)
-        ?.split(",")
-        .at(-1)
-        ?.trim();
-      if (last) return last;
+      const entries = (Array.isArray(forwarded) ? forwarded.join(",") : (forwarded ?? ""))
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // Fewer entries than proxies means the request skipped the chain; trust none of them.
+      const ip = entries.at(-hops);
+      if (ip && entries.length >= hops) return ip;
     }
     return req.socket.remoteAddress ?? "unknown";
   }
