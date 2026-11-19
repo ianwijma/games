@@ -189,6 +189,33 @@ const quantile = (sorted: number[], q: number) =>
   sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? Number.NaN;
 const fmt = (n: number, digits = 1) => (Number.isNaN(n) ? "n/a" : n.toFixed(digits));
 
+/** The relay's last state-file write, if it runs with STATE_FILE (see /healthz). */
+async function readSnapshotInfo(): Promise<unknown> {
+  try {
+    const healthUrl = (url as string).replace(/^ws/, "http").replace(/\/ws$/, "/healthz");
+    const health = (await (await fetch(healthUrl)).json()) as {
+      snapshot?: {
+        bytes: number;
+        serializeMs: number;
+        maxBlockMs: number;
+        writeMs: number;
+        rooms: number;
+      } | null;
+    };
+    const snap = health.snapshot;
+    if (!snap) return undefined;
+    return {
+      bytes: snap.bytes,
+      serializeMs: fmt(snap.serializeMs, 2),
+      maxBlockMs: fmt(snap.maxBlockMs, 2),
+      writeMs: fmt(snap.writeMs, 2),
+      rooms: snap.rooms,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 const rssEmpty = rssMb();
 const t0 = performance.now();
 const batch = 50;
@@ -232,6 +259,7 @@ const report = {
   latencyMsP99: fmt(quantile(latencies, 0.99)),
   samples: latencies.length,
   errors,
+  snapshot: await readSnapshotInfo(),
 };
 console.log(JSON.stringify(report));
 relay?.kill("SIGTERM");

@@ -135,9 +135,21 @@ them.
 - **An action can be lost with its host.** If the host dies after receiving an
   action but before committing it, the player's client resends it to the new
   host. This is built and tested, but it is why actions carry sequence numbers.
-- **The relay is a single point of failure** and holds rooms in memory. A relay
-  restart ends every room. Persisting checkpoints to disk would fix that; not
-  built.
+- **The relay is a single point of failure.** While it is down nobody can
+  play. With `STATE_FILE` set it writes its rooms to a file and a restart is a
+  pause of a few seconds (see "Surviving a relay restart" in
+  [architecture.md](architecture.md)). What is still lost:
+  - After a **crash** (not a normal stop), the moves, joins and new rooms since
+    the last write, at most `SNAPSHOT_INTERVAL_MS` (5 s) plus one write. A
+    player who joined in that window is told the seat is gone.
+  - Every room, when the relay is deployed with a new `PROTOCOL_VERSION` or
+    snapshot format, or when the file is lost or damaged.
+  - Rooms whose 30 minutes without players ran out while the relay was down.
+  - Messages in flight. Actions are resent, so in turn-based games nothing is
+    missed; a real-time game drops back to its last checkpoint.
+    The file is one JSON document rewritten whole, about 9 KB per room at 8 KB
+    of game state. That suits thousands of rooms on one relay, not more, and
+    one file means one relay process.
 
 ## 6. Hosting the relay at home
 
@@ -203,6 +215,5 @@ them.
 
 - Real-time runtime (`@games/realtime`)
 - Server-side authority and matchmaking
-- Checkpoint persistence across relay restarts
 - Per-IP rate limit on join attempts
 - Spectators, bots, save and resume

@@ -29,4 +29,5 @@ Each push to `develop` that passes CI publishes `ghcr.io/ianwijma/games-web`
 and `ghcr.io/ianwijma/games-relay`, tagged `sha-<short sha>`; the homelab repo
 pins those tags. See [Deployment and sizing](docs/deployment.md) for the
 images, the relay's environment variables (`ALLOWED_ORIGINS`,
-`CLIENT_IP_HEADER`, `TRUST_PROXY`, ...) and why a relay deploy ends every room.
+`CLIENT_IP_HEADER`, `TRUST_PROXY`, `STATE_FILE`, ...) and what a relay restart
+does to open rooms.

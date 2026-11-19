@@ -17,6 +17,13 @@ import {
   parseClientMessage,
 } from "@games/protocol";
 import { type Clock, systemClock } from "./clock";
+import {
+  type HubSnapshot,
+  parseSnapshot,
+  type RestoreResult,
+  type RoomSnapshot,
+  SNAPSHOT_FORMAT,
+} from "./snapshot";
 
 export interface Connection {
   send(message: ServerMessage): void;
@@ -72,11 +79,23 @@ interface Room {
   /** Insertion order is the tie-break for host election. */
   seats: Map<PeerId, Seat>;
   checkpoint: Checkpoint | null;
-  alarms: Map<string, unknown>;
+  /** `at` is absolute relay-clock time, kept so a snapshot can re-arm the alarm in a new process. */
+  alarms: Map<string, { at: number; handle: unknown }>;
   /** Alarms that fired while there was no host. */
   dueAlarms: Set<string>;
   emptyTimer: unknown;
+  /** Relay-clock time the last peer disconnected; null while anyone is connected. */
+  emptySince: number | null;
 }
+
+/**
+ * Added to the checkpoint `seq` of every restored room. After a crash the snapshot can be a few
+ * commits older than what clients last saw, and a client ignores views with a lower `seq` than
+ * its current one. The gap makes the first commit after a restore newer than anything seen before.
+ * A room restored with no checkpoint restarts at seq 1, so clients must also accept any view after
+ * a reconnect or a host change (the turn-based runtime does).
+ */
+export const RESTORE_SEQ_GAP = 1_000_000;
 
 const ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 
@@ -92,6 +111,7 @@ export class Hub {
   private readonly allowedGames: readonly string[] | undefined;
   private readonly volatileDropBytes: number;
   private readonly rate: { burst: number; perSecond: number };
+  private changes = 0;
 
   constructor(options: HubOptions = {}) {
     this.clock = options.clock ?? systemClock;
@@ -108,6 +128,117 @@ export class Hub {
   /** Cancels every timer and forgets all rooms. Call when shutting the relay down. */
   close() {
     for (const room of [...this.rooms.values()]) this.deleteRoom(room);
+  }
+
+  /**
+   * Increases whenever something a snapshot would contain may have changed. Compare with the value
+   * at the last snapshot to skip writing an identical one.
+   */
+  get revision(): number {
+    return this.changes;
+  }
+
+  /**
+   * Everything needed to carry on in another process: plain JSON-safe data. Checkpoint states are
+   * shared by reference, not copied (the hub never mutates them), so serialise without modifying.
+   * Connections are not part of it: after `restore` every seat is disconnected.
+   */
+  snapshot(): HubSnapshot {
+    const rooms: RoomSnapshot[] = [];
+    for (const room of this.rooms.values()) {
+      rooms.push({
+        code: room.code,
+        game: room.game,
+        gameVersion: room.gameVersion,
+        mode: room.mode,
+        hostId: room.hostId,
+        epoch: room.epoch,
+        locked: room.locked,
+        maxPeers: room.maxPeers,
+        seats: [...room.seats.values()].map((s) => ({ info: { ...s.info }, token: s.token })),
+        checkpoint: room.checkpoint,
+        alarms: [...room.alarms].map(([id, { at }]) => ({ id, at })),
+        dueAlarms: [...room.dueAlarms],
+        emptySince: room.emptySince,
+      });
+    }
+    return {
+      format: SNAPSHOT_FORMAT,
+      protocol: PROTOCOL_VERSION,
+      savedAt: this.clock.now(),
+      rooms,
+    };
+  }
+
+  /**
+   * Loads a snapshot into an empty hub. Never throws: anything that is not a snapshot of this
+   * format and protocol version is refused with a reason and the hub stays empty.
+   *
+   * Every seat comes back disconnected and every room without a host, under a new epoch, exactly
+   * as if all sockets had dropped. Alarms keep their absolute time; one that fell due while no
+   * process was running is delivered once to the first host. A room that was empty counts its
+   * expiry from when it became empty; a room with connected peers counts from `savedAt`.
+   */
+  restore(data: unknown): RestoreResult {
+    if (this.rooms.size > 0) return { ok: false, reason: "hub is not empty" };
+    const parsed = parseSnapshot(data);
+    if (!parsed.ok) return parsed;
+    const now = this.clock.now();
+    const savedAt = Math.min(parsed.snapshot.savedAt, now);
+    let expired = 0;
+    const skipped = parsed.skipped;
+    for (const snap of parsed.snapshot.rooms) {
+      if (this.allowedGames && !this.allowedGames.includes(snap.game)) {
+        skipped.push(`${snap.code}: game not allowed on this relay`);
+        continue;
+      }
+      const emptySince = Math.min(snap.emptySince ?? savedAt, now);
+      if (emptySince + this.emptyRoomTtlMs <= now) {
+        expired++;
+        continue;
+      }
+      const room: Room = {
+        code: snap.code,
+        game: snap.game,
+        gameVersion: snap.gameVersion,
+        mode: snap.mode,
+        hostId: null,
+        epoch: snap.epoch + 1,
+        locked: snap.locked,
+        maxPeers: snap.maxPeers,
+        seats: new Map(
+          snap.seats.map((s) => [
+            s.info.id,
+            { info: { ...s.info, connected: false }, token: s.token, ctx: null },
+          ]),
+        ),
+        checkpoint: snap.checkpoint && {
+          seq: snap.checkpoint.seq + RESTORE_SEQ_GAP,
+          state: snap.checkpoint.state,
+        },
+        alarms: new Map(),
+        dueAlarms: new Set(snap.dueAlarms),
+        emptyTimer: undefined,
+        emptySince,
+      };
+      this.rooms.set(room.code, room);
+      for (const { id, at } of snap.alarms) {
+        if (at <= now) room.dueAlarms.add(id);
+        else this.armAlarm(room, id, at);
+      }
+      room.emptyTimer = this.clock.setTimer(
+        () => this.expire(room),
+        emptySince + this.emptyRoomTtlMs - now,
+      );
+    }
+    this.changes++;
+    return {
+      ok: true,
+      rooms: this.rooms.size,
+      expired,
+      skipped,
+      savedAt: parsed.snapshot.savedAt,
+    };
   }
 
   stats(): { rooms: number; peers: number; connected: number } {
@@ -142,6 +273,7 @@ export class Hub {
     if (!this.takeToken(ctx)) return this.fail(ctx, "rate-limited", "too many messages");
     const msg = parseClientMessage(raw);
     if (!msg) return this.fail(ctx, "bad-message", "invalid message");
+    if (msg.t !== "ping" && msg.t !== "send") this.changes++;
 
     const joined = ctx.seat !== null;
     if (!joined) {
@@ -235,6 +367,7 @@ export class Hub {
       alarms: new Map(),
       dueAlarms: new Set(),
       emptyTimer: undefined,
+      emptySince: null,
     };
     this.rooms.set(room.code, room);
     this.addSeat(room, ctx, msg);
@@ -292,6 +425,7 @@ export class Hub {
     const seat = ctx.seat;
     const room = ctx.room;
     if (!seat || !room || seat.ctx !== ctx) return;
+    this.changes++;
     seat.ctx = null;
     seat.info.connected = false;
     this.broadcast(room, { t: "peer", ev: "drop", peer: { ...seat.info } }, seat.info.id);
@@ -444,7 +578,7 @@ export class Hub {
   private alarm(ctx: Ctx, room: Room, msg: Extract<ClientMessage, { t: "alarm" }>) {
     const existing = room.alarms.get(msg.id);
     if (msg.at === null) {
-      if (existing !== undefined) this.clock.clearTimer(existing);
+      if (existing !== undefined) this.clock.clearTimer(existing.handle);
       room.alarms.delete(msg.id);
       room.dueAlarms.delete(msg.id);
       return;
@@ -452,18 +586,23 @@ export class Hub {
     if (existing === undefined && room.alarms.size >= LIMITS.maxAlarmsPerRoom) {
       return this.fail(ctx, "bad-message", "too many alarms");
     }
-    if (existing !== undefined) this.clock.clearTimer(existing);
+    if (existing !== undefined) this.clock.clearTimer(existing.handle);
     room.dueAlarms.delete(msg.id);
+    this.armAlarm(room, msg.id, msg.at);
+  }
+
+  private armAlarm(room: Room, id: string, at: number) {
     const handle = this.clock.setTimer(
       () => {
-        room.alarms.delete(msg.id);
+        this.changes++;
+        room.alarms.delete(id);
         const host = room.hostId === null ? undefined : room.seats.get(room.hostId);
-        if (host?.ctx) host.ctx.conn.send({ t: "alarm", id: msg.id });
-        else room.dueAlarms.add(msg.id);
+        if (host?.ctx) host.ctx.conn.send({ t: "alarm", id });
+        else room.dueAlarms.add(id);
       },
-      Math.max(0, msg.at - this.clock.now()),
+      Math.max(0, at - this.clock.now()),
     );
-    room.alarms.set(msg.id, handle);
+    room.alarms.set(id, { at, handle });
   }
 
   private roomSettings(room: Room, msg: Extract<ClientMessage, { t: "room" }>) {
@@ -480,13 +619,19 @@ export class Hub {
     // A socket can report its close after the room is gone (hub shutdown); arm nothing then.
     if (this.rooms.get(room.code) !== room) return;
     if (this.connectedSeats(room).length > 0 || room.emptyTimer !== undefined) return;
-    room.emptyTimer = this.clock.setTimer(() => {
-      room.emptyTimer = undefined;
-      if (this.connectedSeats(room).length === 0) this.deleteRoom(room);
-    }, this.emptyRoomTtlMs);
+    room.emptySince = this.clock.now();
+    room.emptyTimer = this.clock.setTimer(() => this.expire(room), this.emptyRoomTtlMs);
+  }
+
+  private expire(room: Room) {
+    room.emptyTimer = undefined;
+    if (this.connectedSeats(room).length > 0) return;
+    this.changes++;
+    this.deleteRoom(room);
   }
 
   private cancelEmptyTimer(room: Room) {
+    room.emptySince = null;
     if (room.emptyTimer === undefined) return;
     this.clock.clearTimer(room.emptyTimer);
     room.emptyTimer = undefined;
@@ -494,7 +639,7 @@ export class Hub {
 
   private deleteRoom(room: Room) {
     this.cancelEmptyTimer(room);
-    for (const handle of room.alarms.values()) this.clock.clearTimer(handle);
+    for (const { handle } of room.alarms.values()) this.clock.clearTimer(handle);
     room.alarms.clear();
     room.dueAlarms.clear();
     this.rooms.delete(room.code);

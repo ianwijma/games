@@ -4,9 +4,13 @@ on:
   pull_request:
   push:
     branches: [main, develop]
+  # preview.yml runs these checks before it builds a preview.
+  workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # github.workflow is the caller's name when called, so a preview's checks and the PR's own CI
+  # run do not cancel each other.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

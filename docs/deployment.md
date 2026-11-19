@@ -3,8 +3,10 @@
 Status as of 2026-11-20:
 
 - **Built and checked locally:** both container images, the workflow that
-  publishes them, and the relay's client IP settings (unit tests, and both
-  images run with a read-only root filesystem under Docker).
+  publishes them, the relay's client IP settings (unit tests, and both
+  images run with a read-only root filesystem under Docker), and rooms
+  surviving a relay restart (tests, and the relay image restarted under Docker
+  with a game open; see "Relay state file").
 - **Observed on the real path:** the headers the relay sees behind the tunnel
   (see "Client IP behind the tunnel").
 - **Planned, in the homelab repo:** the Kubernetes manifests, DNS and the Argo
@@ -15,10 +17,10 @@ repeating on the real server (see "Validating").
 
 ## What gets deployed
 
-| Piece     | Image                          | Container                                  | State it holds        |
-| --------- | ------------------------------ | ------------------------------------------ | --------------------- |
-| **Site**  | `ghcr.io/ianwijma/games-web`   | nginx serving `apps/web/out` on port 8080  | None                  |
-| **Relay** | `ghcr.io/ianwijma/games-relay` | One Node process (`apps/relay`), port 6767 | Rooms, in memory only |
+| Piece     | Image                          | Container                                  | State it holds                                       |
+| --------- | ------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
+| **Site**  | `ghcr.io/ianwijma/games-web`   | nginx serving `apps/web/out` on port 8080  | None                                                 |
+| **Relay** | `ghcr.io/ianwijma/games-relay` | One Node process (`apps/relay`), port 6767 | Rooms, in memory, plus one snapshot file on a volume |
 
 There is no database. Everything below that concerns capacity is about the
 relay.
@@ -59,7 +61,9 @@ players ── WSS ───> games-relay.wijma.cloud/ws ┘                    
 There is no `latest`. Images are `linux/amd64` only, which is what the cluster
 runs. The site image is built with
 `NEXT_PUBLIC_RELAY_URL=wss://games-relay.wijma.cloud/ws`. It can also be run by
-hand from the Actions tab (`workflow_dispatch`, `develop` only).
+hand from the Actions tab (`workflow_dispatch`, `develop` only). The build
+itself (Dockerfiles, build args, labels, cache) is the composite action
+`.github/actions/build-image`, which `preview.yml` uses too.
 
 Build them locally from the repo root:
 
@@ -71,24 +75,94 @@ docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_RELAY_URL=wss://game
 Both run as a numeric non-root user (relay 1000, site 101), so
 `runAsNonRoot: true` works, and both work with `readOnlyRootFilesystem: true`.
 The site's nginx needs `/tmp` writable (mount an `emptyDir` there); the relay
-writes nothing. Probes: `GET /healthz` on each container's port. The Docker
+writes only into the directory of `STATE_FILE` (mount a volume there). Probes: `GET /healthz` on each container's port. The Docker
 `HEALTHCHECK` in the relay image is ignored by Kubernetes.
 
 ### Relay configuration
 
-| Variable           | Production value            | Why                                                                                         |
-| ------------------ | --------------------------- | ------------------------------------------------------------------------------------------- |
-| `PORT`             | `6767` (the default)        |                                                                                             |
-| `ALLOWED_ORIGINS`  | `https://games.wijma.cloud` | Stops other sites using the relay from browsers                                             |
-| `ALLOWED_GAMES`    | the game ids we ship        | Stops the relay being used for anything else                                                |
-| `CLIENT_IP_HEADER` | `cf-connecting-ip`          | Where the per-IP cap finds the player's address. See below.                                 |
-| `TRUST_PROXY`      | unset                       | Number of proxies appending to `X-Forwarded-For`. Not needed when `CLIENT_IP_HEADER` is set |
-| `MAX_CONN_PER_IP`  | `32` (the default)          | Raise if many players share one address (a school, an office)                               |
-| `MAX_ROOMS`        | `10000` (the default)       | New rooms are refused with "server full" beyond this                                        |
+| Variable               | Production value            | Why                                                                                         |
+| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+| `PORT`                 | `6767` (the default)        |                                                                                             |
+| `ALLOWED_ORIGINS`      | `https://games.wijma.cloud` | Stops other sites using the relay from browsers                                             |
+| `ALLOWED_GAMES`        | the game ids we ship        | Stops the relay being used for anything else                                                |
+| `CLIENT_IP_HEADER`     | `cf-connecting-ip`          | Where the per-IP cap finds the player's address. See below.                                 |
+| `TRUST_PROXY`          | unset                       | Number of proxies appending to `X-Forwarded-For`. Not needed when `CLIENT_IP_HEADER` is set |
+| `MAX_CONN_PER_IP`      | `32` (the default)          | Raise if many players share one address (a school, an office)                               |
+| `MAX_ROOMS`            | `10000` (the default)       | New rooms are refused with "server full" beyond this                                        |
+| `STATE_FILE`           | `/data/relay-state.json`    | Where rooms are kept across a restart. Unset: no file, a restart ends every room            |
+| `SNAPSHOT_INTERVAL_MS` | `5000` (the default)        | How often the file is rewritten when something changed. Bounds what a crash loses           |
 
 Also: open-file limit at least twice the expected socket count (one file per
 connection), and a container memory limit of about twice the expected peak
 from the tables below.
+
+### Relay state file
+
+With `STATE_FILE` set, a relay restart does not end rooms. Players see
+"reconnecting" while the relay is away and then carry on in the same room, seat
+and game, with turn timers intact. How it works is in
+[architecture.md](architecture.md), "Surviving a relay restart".
+
+- **On start** the relay reads the file before it listens. It logs
+  `restored N rooms (M expired during downtime), snapshot Ns old`, or that
+  there was no file, or why it ignored one.
+- **While running** it rewrites the file every `SNAPSHOT_INTERVAL_MS` if
+  anything changed since the last write. An idle relay writes nothing.
+- **On SIGTERM or SIGINT** it stops reading from sockets, writes a final
+  snapshot and exits 0. Nothing is lost on a normal stop. If that write fails
+  it exits 1.
+- **Writes are atomic**: `<file>.tmp` in the same directory, fsync, rename.
+  The file is mode 0600, because it holds the seat tokens.
+- **A file it cannot use** (another `PROTOCOL_VERSION` or format, damaged) is
+  moved to `<file>.rejected` and the relay starts empty. It never refuses to
+  start because of the file. One unusable room in an otherwise good file is
+  left out and logged.
+- **A write that fails** (volume full or read-only) is logged and retried at
+  the next interval. The relay keeps serving; only the protection is gone.
+
+What the container needs:
+
+| Need                  | Value                                                                                                       |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Writable directory    | The directory of `STATE_FILE`, `/data`. Nothing else is written; keep the root filesystem read-only         |
+| Volume                | ReadWriteOnce, 1 GiB is ample: the file is about 9 KB per room, and twice that during a write               |
+| Ownership             | The relay runs as uid and gid 1000. Set `fsGroup: 1000` so the volume is writable                           |
+| Replicas and strategy | One replica, `Recreate`. Two relays must never share the file                                               |
+| Shutdown time         | The final write takes about 0.1 s at 1,000 rooms. The default `terminationGracePeriodSeconds: 30` is plenty |
+| Probes                | Unchanged: `GET /healthz`. The file is loaded before the port opens, so "ready" means rooms are back        |
+
+`/healthz` gains a `snapshot` field with the last write: `savedAt`, `bytes`,
+`rooms`, `serializeMs`, `maxBlockMs` and `writeMs`. It is `null` until the first
+write.
+
+**Measured** on 2026-11-20 with the load test above (1,000 rooms, 4,000
+players, 8 KB of state per room, a move per room every 5 s), same machine:
+
+|                                               | Without `STATE_FILE` |          With, every 5 s |
+| --------------------------------------------- | -------------------: | -----------------------: |
+| Snapshot size                                 |                    — | 9.3 MB (9,255,059 bytes) |
+| Time to serialise, total                      |                    — |                    32 ms |
+| Longest single pause of the relay             |                    — |                     6 ms |
+| Time to write and fsync (off the main thread) |                    — |                    51 ms |
+| Latency p50 / p99                             |         0.5 / 1.1 ms |             0.5 / 3.0 ms |
+| Relay CPU (one core)                          |                   9% |                      10% |
+| Relay memory, peak                            |               155 MB |                   176 MB |
+
+Serialising is done a few rooms at a time, so the relay never stops for the
+whole 32 ms. Size and time grow in step with rooms and state size; at the
+homelab's 50 rooms the file is under half a megabyte. The disk was a local
+NVMe drive; fsync on a Longhorn volume will be slower, which lengthens only
+the write, not the pause.
+
+**What is lost**, and when:
+
+| Event                                    | Lost                                                                                           |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Deploy, `kubectl rollout restart`, drain | Nothing. A pause for as long as the relay is away                                              |
+| Crash, OOM kill, node failure            | Moves, joins and new rooms since the last write: at most `SNAPSHOT_INTERVAL_MS` plus one write |
+| Deploy that changes `PROTOCOL_VERSION`   | Every room. The site must be deployed with it anyway                                           |
+| Relay down for more than 30 minutes      | Rooms nobody was in; then every room, since expiry counts the downtime                         |
+| Volume lost or file deleted              | Every room                                                                                     |
 
 ### Client IP behind the tunnel
 
@@ -142,6 +216,93 @@ The site image's nginx (`apps/web/nginx.conf`) serves directory URLs
 `Cache-Control: no-cache` for everything else so a deploy is seen on reload,
 answers unknown paths with the export's `404.html`, and serves `/healthz`.
 
+## Preview deployments
+
+Any open PR from a branch in this repo can get its own copy of the site and
+relay, like Vercel's previews. The homelab's Argo CD ApplicationSet (pull
+request generator) deploys them; this repo builds the images.
+
+**To get one, add the `preview` label to the PR.** After the checks pass, a
+comment on the PR gives the addresses:
+
+| Piece | Address                                   |
+| ----- | ----------------------------------------- |
+| Site  | `https://games-pr-<n>.wijma.cloud`        |
+| Relay | `wss://games-relay-pr-<n>.wijma.cloud/ws` |
+
+`<n>` is the PR number. Each preview has its own relay with its own empty
+rooms, so it can't break games on the real site.
+
+**When it updates.** Every push to a labelled PR runs the CI checks, builds
+both images from the PR's head commit and updates the comment. Argo CD polls,
+so the new commit goes live about 3 to 5 minutes after the comment changes. A
+new push cancels a build that is still running.
+
+**When it is deleted.** Removing the label, closing the PR or merging it
+deletes the preview (Argo CD stops seeing the PR), and the comment says so.
+Closing or merging also deletes the PR's images from GHCR. Removing the label
+keeps them, so adding it back on the same commit is quick.
+
+**Expiry.** Once a day, the `preview` label is removed from every open PR
+whose head commit is more than 7 days old (committer date), and the comment
+says the preview expired. Add the label again to bring it back. Push a new
+commit first: on a commit that is still too old, the next daily run removes the
+label again.
+
+**Security.** A preview runs the PR's code in the homelab cluster under
+`wijma.cloud`, and the repo is public. Two things gate it:
+
+- Only collaborators can add labels, so nobody else can start a preview.
+- PRs from forks are ignored completely, label or not. The workflows use
+  `pull_request`, never `pull_request_target`, so fork code would never get a
+  token that can push images or write to the repo anyway.
+
+Review a PR's changes before you label it, and remember that every later push
+deploys too.
+
+### Images and the contract with the homelab
+
+| Image                          | Tag                 | Built with                                                      |
+| ------------------------------ | ------------------- | --------------------------------------------------------------- |
+| `ghcr.io/ianwijma/games-web`   | `pr-<n>-<head sha>` | `NEXT_PUBLIC_RELAY_URL=wss://games-relay-pr-<n>.wijma.cloud/ws` |
+| `ghcr.io/ianwijma/games-relay` | `pr-<n>-<head sha>` |                                                                 |
+
+`<head sha>` is the full 40-character SHA of the PR's head commit
+(`github.event.pull_request.head.sha`), not the merge commit. The
+ApplicationSet builds the same tag from its `{{number}}` and `{{head_sha}}`
+parameters, so changing the format, the hostnames or the label name means
+changing the homelab repo at the same time.
+
+Preview images are built without a provenance attestation, so each tag is
+exactly one package version, and with a `cloud.wijma.games.preview=pr-<n>`
+label, so a preview's digest never equals a `develop` image built from the
+same commit. Cleanup deletes only versions whose tags are all `pr-<n>-*`;
+`sha-*`, `develop` and untagged versions are never touched. Older commits'
+`pr-<n>-*` tags stay until the PR closes.
+
+### Workflows
+
+| File                                   | Runs on                                                                   | Does                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `.github/workflows/preview.yml`        | `pull_request`: opened, synchronize, reopened, labeled, unlabeled, closed | Runs `ci.yml`, builds and pushes both images, keeps the sticky comment, deletes `pr-<n>-*` versions on close |
+| `.github/workflows/preview-expiry.yml` | Daily at 04:17 UTC, and by hand                                           | Removes the label from PRs whose head commit is older than `MAX_AGE_DAYS` (7), updates the comment           |
+| `.github/workflows/ci.yml`             | Also `workflow_call`                                                      | The checks a preview needs to pass first                                                                     |
+| `.github/actions/build-image`          | Used by `images.yml` and `preview.yml`                                    | Builds and pushes one image                                                                                  |
+
+Run the expiry by hand from the Actions tab; the dry-run box is ticked by
+default and only lists what would expire. A label removed by the expiry
+workflow does not trigger `preview.yml` (GitHub does not start workflows from
+`GITHUB_TOKEN` events), so the expiry workflow writes the comment itself.
+
+**Deleting images needs no setup.** The cleanup deletes package versions with
+the workflow's `GITHUB_TOKEN` (`packages: write`), which needs this repo to
+have the Admin role on each package. It already has it: both packages were
+first published by this repo's workflows, and a test PR's cleanup on
+2026-11-20 deleted its versions with no extra setup. If a package is ever
+recreated another way and the cleanup fails with 403 or 404, open the
+package's settings, "Manage Actions access", and give this repo the Admin
+role.
+
 ## Rolling out a change
 
 Deploying means changing the pinned `sha-…` tag in the homelab repo; Argo CD
@@ -152,14 +313,17 @@ then rolls it out. Merging to `develop` only publishes images.
 2. **A game's state or action shape changed**: bump that game's `version`.
    Rooms refuse to mix versions, so old tabs get "refresh to update" on their
    next join instead of corrupting a game.
-3. **Relay**: restarting it **ends every room**, because rooms live in memory.
-   Clients reconnect on their own, but their rooms are gone. Until checkpoints
-   are persisted (not built), deploy the relay when `/healthz` shows few rooms,
-   and keep relay deploys rare. Do not let anything bump the relay tag
-   automatically. A rolling update does not help: the new pod starts empty.
+3. **Relay**: with `STATE_FILE` set, a restart pauses every game for as long
+   as the pod takes to come back, and then they continue. Players see
+   "reconnecting". Keep the `Recreate` strategy: a rolling update would start
+   the new pod before the old one has written its final snapshot. Without
+   `STATE_FILE` a restart ends every room.
 4. **Protocol change** (`PROTOCOL_VERSION`): deploy the relay and the site
-   together. Old tabs are refused with a clear error and must reload.
-5. **Rollback**: pin the previous `sha-…` tag. Nothing to migrate.
+   together. Old tabs are refused with a clear error and must reload. **This
+   ends every open room**: the new relay ignores the old state file. Deploy it
+   when `/healthz` shows few rooms.
+5. **Rollback**: pin the previous `sha-…` tag. Nothing to migrate. A relay
+   from before the state file ignores it and starts empty.
 
 ## How much server does it need?
 
@@ -289,31 +453,32 @@ the realistic one: the smallest container the homelab can give.
 Sizing is only trusted once it is repeated where the relay will run. All of
 these use the load test (a fixed load) or the ramp (add rooms until it fails).
 
-| Check                             | How                                                                                                                                 | Pass when                                                                                                                |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Capacity on the real server**   | Run the load test on the server itself at the planned room count and at twice that                                                  | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors                                      |
-| **Through the real network path** | From outside the home network: `loadtest -- --url wss://games-relay.wijma.cloud/ws --rooms 200`                                     | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink.                             |
-| **Upload limit**                  | `ramp -- --url wss://games-relay.wijma.cloud/ws --step 50` from outside                                                             | Note the room count; it is the real ceiling. Plan for half of it.                                                        |
-| **Memory leak**                   | `--seconds 3600` at a moderate room count                                                                                           | Relay memory is flat after the first minutes                                                                             |
-| **Idle connections survive**      | Open a room, do nothing for 10 minutes, then move                                                                                   | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it. |
-| **Proxy reload**                  | Reload the proxy config with a game open                                                                                            | The game continues after an automatic reconnect                                                                          |
-| **Relay restart**                 | Restart the container with a game open                                                                                              | Clients show "disconnected" and a clear message; no hung tabs. (The room is lost; that is the known limit.)              |
-| **Real phones**                   | Play one full game on mobile data, lock the phone for a minute mid-game                                                             | You are back in your seat when it unlocks                                                                                |
-| **A real game's cost**            | Once Ohno! is ported, record its actual state size and moves per minute and rerun with `--state-bytes` and `--move-ms` set to match | The specification table is updated with those figures                                                                    |
+| Check                             | How                                                                                                                                 | Pass when                                                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Capacity on the real server**   | Run the load test on the server itself at the planned room count and at twice that                                                  | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors                                            |
+| **Through the real network path** | From outside the home network: `loadtest -- --url wss://games-relay.wijma.cloud/ws --rooms 200`                                     | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink.                                   |
+| **Upload limit**                  | `ramp -- --url wss://games-relay.wijma.cloud/ws --step 50` from outside                                                             | Note the room count; it is the real ceiling. Plan for half of it.                                                              |
+| **Memory leak**                   | `--seconds 3600` at a moderate room count                                                                                           | Relay memory is flat after the first minutes                                                                                   |
+| **Idle connections survive**      | Open a room, do nothing for 10 minutes, then move                                                                                   | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it.       |
+| **Proxy reload**                  | Reload the proxy config with a game open                                                                                            | The game continues after an automatic reconnect                                                                                |
+| **Relay restart**                 | Restart the pod with a game open (`kubectl rollout restart`), then again with `kubectl delete pod --force` mid-game                 | Players see "reconnecting" and are back in the same game within seconds. After the forced kill, at most 5 s of moves are gone. |
+| **Real phones**                   | Play one full game on mobile data, lock the phone for a minute mid-game                                                             | You are back in your seat when it unlocks                                                                                      |
+| **A real game's cost**            | Once Ohno! is ported, record its actual state size and moves per minute and rerun with `--state-bytes` and `--move-ms` set to match | The specification table is updated with those figures                                                                          |
 
 When running the load test over the internet, the `MAX_CONN_PER_IP` cap applies
 to the machine running it. Raise the cap for the test and put it back after.
 
 ### Watching it in production
 
-`GET /healthz` returns the number of rooms, seats and live connections. Record
+`GET /healthz` returns the number of rooms, seats and live connections, and
+the last state-file write. Alert if `snapshot.savedAt` stops advancing while
+rooms are being played. Record
 it once a minute together with the container's memory and CPU, and the uplink's
 usage. Alert on: the health check failing, memory over 70% of the limit, upload
 over 60% of the line. Process-level metrics from the relay itself are not built.
 
 ## Not built yet
 
-- Checkpoint persistence, so a relay restart does not end rooms
 - More than one relay process
 - Compression, patches or binary frames
 - Per-IP limits on creating rooms and guessing codes
