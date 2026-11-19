@@ -206,3 +206,4 @@ them.
 - Checkpoint persistence across relay restarts
 - Per-IP rate limit on join attempts
 - Spectators, bots, save and resume
+<!-- preview e2e test, throwaway -->
