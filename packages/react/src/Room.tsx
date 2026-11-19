@@ -1,6 +1,6 @@
 "use client";
 import { GameError, type Session } from "@games/game";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { inviteLink } from "./code";
 import type { GameModule } from "./types";
 import { Button, cardClass } from "./ui";
@@ -33,9 +33,9 @@ export function Closed({
   onExit(): void;
 }) {
   return (
-    <div className={`mx-auto w-full max-w-md space-y-4 ${cardClass}`} role="alert">
-      <h1 className="text-xl font-semibold">Disconnected</h1>
-      <p className="text-sm">{closedText[reason] ?? message ?? "The game has ended."}</p>
+    <div className={`${cardClass} narrow flex flex-col gap-3`} role="alert">
+      <h1 className="text-xl">Disconnected</h1>
+      <p>{closedText[reason] ?? message ?? "The game has ended."}</p>
       <Button variant="primary" onClick={onExit}>
         Back to start
       </Button>
@@ -109,8 +109,10 @@ export function Room({
   }
   if (snap.code === null || snap.phase === null) {
     return (
-      <div className="mx-auto max-w-md space-y-4 text-center">
-        <p role="status">Connecting...</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <p role="status" className="pill">
+          Connecting...
+        </p>
         <Button onClick={onExit}>Cancel</Button>
       </div>
     );
@@ -125,27 +127,24 @@ export function Room({
   const { minPlayers } = game.definition;
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       {(snap.status === "reconnecting" || away.length > 0) && (
-        <div
-          role="status"
-          className="rounded-lg bg-amber-100 px-3 py-1.5 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
-        >
+        <p role="status" className="pill warn self-center">
           {snap.status === "reconnecting"
             ? "Connection lost. Reconnecting..."
             : `${away.join(", ")} ${away.length === 1 ? "is" : "are"} disconnected`}
-        </div>
+        </p>
       )}
 
       {snap.phase === "lobby" ? (
-        <div className={`space-y-5 ${cardClass}`}>
-          <div className="text-center">
-            <h1 className="text-lg font-semibold">{game.title}</h1>
-            <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">Invite code</p>
-            <p className="font-mono text-4xl font-bold tracking-[0.25em] sm:text-5xl">
-              {snap.code}
-            </p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
+        <>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <h1 className="felt-title">{game.title}</h1>
+            <div className="plaque">
+              <small>Invite code</small>
+              <strong>{snap.code}</strong>
+            </div>
+            <div className="row center">
               <CopyButton label="Copy code" text={snap.code} />
               <CopyButton
                 label="Copy link"
@@ -156,51 +155,73 @@ export function Room({
             </div>
           </div>
 
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800" aria-label="Players">
-            {snap.players.map((p) => (
-              <li key={p.id} className="flex items-center gap-2 py-2">
-                <span
-                  className={`size-2.5 shrink-0 rounded-full ${p.connected ? "bg-green-500" : "bg-neutral-400"}`}
-                  role="img"
-                  aria-label={p.connected ? "connected" : "disconnected"}
-                />
-                <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                {p.isYou && <Badge>you</Badge>}
-                {p.isOwner && <Badge>owner</Badge>}
-                <span
-                  className={`text-sm ${p.ready ? "text-green-700 dark:text-green-400" : "text-neutral-500"}`}
-                >
-                  {p.ready ? "Ready" : "Not ready"}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="lobby">
+            <section className="printed">
+              <div className="felt-label mb-3">Players</div>
+              <ul className="seats" aria-label="Players">
+                {snap.players.map((p, i) => (
+                  <li key={p.id} className="seat">
+                    <div
+                      className={`token${p.connected ? "" : " away"}`}
+                      style={{ "--c": `var(--p${(i % 4) + 1})` } as CSSProperties}
+                      aria-hidden="true"
+                    >
+                      {Array.from(p.name)[0]?.toUpperCase() ?? "?"}
+                    </div>
+                    <span
+                      className="sr-only"
+                      role="img"
+                      aria-label={p.connected ? "connected" : "disconnected"}
+                    />
+                    <span className="tag">{p.name}</span>
+                    {p.isYou && <Badge>you</Badge>}
+                    {p.isOwner && <Badge>owner</Badge>}
+                    <span className={`state${p.ready ? "" : " wait"}`}>
+                      {p.ready ? "Ready" : "Not ready"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-          {game.Settings && snap.config !== null && (
-            <fieldset className="space-y-2" disabled={!snap.isOwner}>
-              <legend className="mb-1 text-sm font-medium">Settings</legend>
-              <game.Settings
-                config={snap.config}
-                disabled={!snap.isOwner}
-                onChange={(config: unknown) => quiet(session.configure(config))}
-              />
-              {!snap.isOwner && (
-                <p className="text-xs text-neutral-500">Only the owner can change settings.</p>
-              )}
-            </fieldset>
-          )}
+            {game.Settings && snap.config !== null && (
+              <section className="paper slip">
+                <fieldset className="flex flex-col gap-2" disabled={!snap.isOwner}>
+                  <legend>Settings</legend>
+                  <game.Settings
+                    config={snap.config}
+                    disabled={!snap.isOwner}
+                    onChange={(config: unknown) => quiet(session.configure(config))}
+                  />
+                  {!snap.isOwner && <p className="muted">Only the owner can change settings.</p>}
+                </fieldset>
+              </section>
+            )}
+          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="pill self-center" role="status">
+            {snap.players.length < minPlayers
+              ? `Waiting for ${minPlayers - snap.players.length} more player${minPlayers - snap.players.length === 1 ? "" : "s"} to join.`
+              : snap.isOwner
+                ? "You can start the game now."
+                : "Waiting for the owner to start."}
+          </p>
+
+          <div className="row actions mt-auto">
+            <Button variant="danger" onClick={leave}>
+              Leave
+            </Button>
+            <span className="grow" />
             {you ? (
               <Button
-                variant={you.ready ? "secondary" : "primary"}
+                variant={!snap.isOwner && !you.ready ? "primary" : "secondary"}
                 aria-pressed={you.ready}
                 onClick={() => quiet(session.setReady(!you.ready))}
               >
                 {you.ready ? "Not ready" : "I'm ready"}
               </Button>
             ) : (
-              <p className="text-sm text-neutral-500">The game is full; you are watching.</p>
+              <p className="pill">The game is full; you are watching.</p>
             )}
             {snap.isOwner && (
               <Button
@@ -211,60 +232,43 @@ export function Room({
                 Start
               </Button>
             )}
-            <Button variant="danger" className="ml-auto" onClick={leave}>
-              Leave
-            </Button>
           </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400" role="status">
-            {snap.players.length < minPlayers
-              ? `Waiting for ${minPlayers - snap.players.length} more player${minPlayers - snap.players.length === 1 ? "" : "s"} to join.`
-              : snap.isOwner
-                ? "You can start the game now."
-                : "Waiting for the owner to start."}
-          </p>
-        </div>
+        </>
       ) : (
         <>
-          <game.Board
-            view={snap.view}
-            me={snap.me}
-            players={snap.players}
-            config={snap.config}
-            phase={snap.phase}
-            isOwner={snap.isOwner}
-            act={act}
-            backToLobby={backToLobby}
-            serverNow={session.serverNow}
-          />
-          <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="stage flex flex-1 flex-col gap-4">
+            <game.Board
+              view={snap.view}
+              me={snap.me}
+              players={snap.players}
+              config={snap.config}
+              phase={snap.phase}
+              isOwner={snap.isOwner}
+              act={act}
+              backToLobby={backToLobby}
+              serverNow={session.serverNow}
+            />
+          </div>
+          <div className="row actions center">
+            {snap.phase === "ended" && !snap.isOwner && (
+              <p className="pill">Waiting for the owner to return to the lobby.</p>
+            )}
+            <Button variant="danger" onClick={leave}>
+              Leave
+            </Button>
             {snap.phase === "ended" && snap.isOwner && (
               <Button variant="primary" onClick={() => quiet(session.backToLobby())}>
                 Back to lobby
               </Button>
             )}
-            {snap.phase === "ended" && !snap.isOwner && (
-              <p className="text-sm text-neutral-500">
-                Waiting for the owner to return to the lobby.
-              </p>
-            )}
-            <Button variant="danger" onClick={leave}>
-              Leave
-            </Button>
           </div>
         </>
       )}
 
       {toast && (
-        <div
-          role="alert"
-          className="fixed inset-x-4 bottom-4 z-10 mx-auto flex max-w-sm items-center gap-3 rounded-lg bg-neutral-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-neutral-100 dark:text-neutral-900"
-        >
+        <div role="alert" className="toast">
           <span className="flex-1">{toast}</span>
-          <button
-            type="button"
-            className="rounded px-2 py-1 underline focus-visible:outline-2 focus-visible:outline-indigo-400"
-            onClick={() => setToast(null)}
-          >
+          <button type="button" className="btn small" onClick={() => setToast(null)}>
             Dismiss
           </button>
         </div>
@@ -274,9 +278,5 @@ export function Room({
 }
 
 function Badge({ children }: { children: string }) {
-  return (
-    <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-      {children}
-    </span>
-  );
+  return <span className="tag">{children}</span>;
 }

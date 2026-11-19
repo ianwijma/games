@@ -1,8 +1,10 @@
 @import "tailwindcss";
+@import "@games/react/table.css";
 @source "../../../packages/react/src";
 /* A directory, not a glob: a glob here silently matched nothing and left boards unstyled. */
 @source "../../../games";
 
+/* There is no light mode: the table is the theme. */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }

@@ -161,7 +161,7 @@ h3 {
 
 label {
   display: block;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 700;
   margin-bottom: 4px;
 }
@@ -175,6 +175,14 @@ select {
   border: 2px solid var(--paper-edge);
   border-radius: 10px;
   padding: 8px 12px;
+}
+input:disabled,
+select:disabled {
+  opacity: 0.65;
+  background: var(--paper);
+}
+input[aria-invalid="true"] {
+  border-color: var(--danger);
 }
 input.code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -225,6 +233,18 @@ input.code {
   color: var(--danger);
   border-color: #e6b5a9;
 }
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:disabled:active {
+  transform: none;
+}
+.btn.block {
+  display: flex;
+  width: 100%;
+}
 .btn.small {
   min-height: 38px;
   padding: 4px 12px;
@@ -251,7 +271,7 @@ input.code {
     0 6px 12px rgb(0 0 0 / 0.4);
 }
 .plaque small {
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -277,7 +297,7 @@ input.code {
   align-items: center;
   gap: 4px;
   min-width: 64px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 .token {
@@ -324,7 +344,7 @@ input.code {
   white-space: nowrap;
 }
 .seat .state {
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -332,6 +352,77 @@ input.code {
 }
 .seat .state.wait {
   color: #f2d9a0;
+}
+
+/* ---- overview: games are boxes lying on the table ---- */
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: clamp(12px, 3vw, 22px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.box {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow:
+    0 4px 0 var(--paper-edge),
+    0 14px 20px rgb(0 0 0 / 0.4);
+}
+.box:nth-child(odd) {
+  transform: rotate(-0.8deg);
+}
+.box:nth-child(3n) {
+  transform: rotate(1deg);
+}
+.shelf > li:nth-child(odd) > .box {
+  transform: rotate(-0.8deg);
+}
+.shelf > li:nth-child(3n) > .box {
+  transform: rotate(1deg);
+}
+.cover {
+  --c: var(--p2);
+  --card-w: 38px;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c), #fff 20%), var(--c));
+}
+.cover .token {
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+}
+.box .info {
+  padding: 10px 12px 12px;
+}
+.box h2,
+.box h3 {
+  font-size: 1.05rem;
+}
+.box p {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 16px);
+  gap: 3px;
+}
+.grid3 b {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.85);
 }
 
 /* ---- cards ---- */
@@ -414,7 +505,7 @@ input.code {
   padding: 12px;
 }
 .felt-label {
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -438,4 +529,185 @@ input.code {
 }
 .grow {
   flex: 1;
+}
+
+/* ---- status: short text on felt sits on a dark pill ---- */
+.pill {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.4);
+  font-weight: 800;
+  text-align: center;
+}
+.pill.low {
+  color: #ffd9cf;
+  box-shadow: 0 0 0 2px var(--danger);
+}
+.pill.warn {
+  color: #f2d9a0;
+  border-radius: 14px;
+}
+
+/* ---- notices: a line of paper stuck to the felt ---- */
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  border-left: 6px solid var(--danger);
+  box-shadow: var(--lift-1);
+}
+.notice.field {
+  padding: 0;
+  margin-top: 4px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+/* A message on top of everything, clear of the device edges. */
+.toast {
+  position: fixed;
+  z-index: 10;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  max-width: 420px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  background: var(--room);
+  color: var(--paper);
+  border: 2px solid var(--brass-dark);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.55);
+}
+.toast .btn {
+  background: none;
+  box-shadow: none;
+  color: var(--paper);
+  border: 2px solid rgb(255 255 255 / 0.4);
+}
+
+/* ---- layout helpers shared by the lobby and the games ---- */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stage {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.paper.narrow {
+  width: min(100%, 440px);
+  margin: 0 auto;
+}
+.paper hr {
+  border: 0;
+  border-top: 2px solid var(--paper-edge);
+  margin: 0;
+}
+.paper fieldset,
+fieldset.paper {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.paper legend {
+  padding: 0;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.lobby {
+  display: grid;
+  gap: clamp(12px, 3vw, 24px);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 820px) {
+  .lobby {
+    grid-template-columns: 1.3fr 1fr;
+  }
+}
+/* On a phone the main action is a full-width button at the bottom. */
+.actions .btn.primary {
+  flex: 1 1 100%;
+  order: 3;
+}
+@media (min-width: 560px) {
+  .actions .btn.primary {
+    flex: none;
+    order: 0;
+  }
+}
+.seat .tag {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- a board lying on the felt (tic-tac-toe is the template) ---- */
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(92deg, rgb(0 0 0 / 0.07) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, var(--wood-light), var(--wood) 30%, var(--wood-dark));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.22),
+    0 12px 22px rgb(0 0 0 / 0.5);
+}
+.cell {
+  aspect-ratio: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.5rem, 16vw, 4rem);
+  line-height: 1;
+  color: var(--ink);
+  background: linear-gradient(180deg, #fffdf6, var(--paper));
+  box-shadow: var(--lift-1);
+  cursor: pointer;
+}
+.cell:disabled {
+  cursor: default;
+}
+.cell:enabled:active {
+  transform: translateY(2px);
+}
+.cell.x {
+  color: var(--p1);
+}
+.cell.o {
+  color: var(--p2);
+}
+.cell.empty:disabled {
+  background: linear-gradient(180deg, var(--paper), var(--paper-edge));
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active,
+  .cell:enabled:active {
+    transform: none;
+  }
 }

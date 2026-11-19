@@ -50,23 +50,18 @@ export function Entry(props: EntryProps) {
   };
 
   return (
-    <div className={`mx-auto w-full max-w-md space-y-5 ${cardClass}`}>
+    <div className={`${cardClass} narrow flex flex-col gap-4`}>
       <div>
-        <h1 className="text-2xl font-semibold">{props.title}</h1>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{props.description}</p>
+        <h1 className="text-2xl">{props.title}</h1>
+        <p className="muted mt-1">{props.description}</p>
       </div>
       {props.error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200"
-        >
+        <p role="alert" className="notice">
           {props.error}
         </p>
       )}
       <div>
-        <label htmlFor="games-name" className="mb-1 block text-sm font-medium">
-          Your name
-        </label>
+        <label htmlFor="games-name">Your name</label>
         <input
           id="games-name"
           className={inputClass}
@@ -76,9 +71,7 @@ export function Entry(props: EntryProps) {
           aria-invalid={touched && trimmed === ""}
           onChange={(e) => setName(e.target.value)}
         />
-        {touched && trimmed === "" && (
-          <p className="mt-1 text-sm text-red-700 dark:text-red-300">Enter a name first.</p>
-        )}
+        {touched && trimmed === "" && <p className="notice field">Enter a name first.</p>}
       </div>
       {props.online && (
         <>
@@ -89,20 +82,19 @@ export function Entry(props: EntryProps) {
           >
             Create game
           </Button>
+          <hr />
           <form
-            className="space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+            className="flex flex-col gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               if (parsed) go(() => props.onJoin(trimmed, parsed));
             }}
           >
-            <label htmlFor="games-code" className="block text-sm font-medium">
-              Invite code
-            </label>
+            <label htmlFor="games-code">Invite code</label>
             <div className="flex gap-2">
               <input
                 id="games-code"
-                className={`${inputClass} font-mono uppercase tracking-widest`}
+                className={`${inputClass} code`.trim()}
                 value={code}
                 placeholder="ABC234"
                 autoCapitalize="characters"
@@ -118,14 +110,15 @@ export function Entry(props: EntryProps) {
         </>
       )}
       {props.solo && (
-        <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <>
+          <hr />
           <Button className="w-full" onClick={() => go(() => props.onLocal(trimmed))}>
             Play on this device
           </Button>
-        </div>
+        </>
       )}
       {!props.online && !props.solo && (
-        <p className="text-sm text-neutral-600 dark:text-neutral-400" role="status">
+        <p className="muted" role="status">
           Multiplayer is not available right now.
         </p>
       )}

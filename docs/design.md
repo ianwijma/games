@@ -7,14 +7,15 @@ on top. That includes the overview page and the lobby, not only the games.
 This is the default for every game. A game may depart from it (see "When a game
 leaves the table"), but it should do so on purpose.
 
-Status: this document and the examples are the agreed direction. The live site
-does not use this look yet. See "Getting there" at the end.
+Status: the table look is live on the site's pages, the shared entry screen and
+lobby, and tic-tac-toe. The shared pieces are not exported as components yet and
+ONO is not built. See "Getting there" at the end.
 
 ## Examples
 
 Static mockups, built only from the stylesheet in
-[`design/examples/table.css`](design/examples/table.css). Open the `.html` files
-next to it in a browser to see them live and resize them.
+[`packages/react/src/table.css`](../packages/react/src/table.css), the same file
+the site uses. Open the `.html` files in `design/examples/` in a browser to see them live and resize them.
 
 |                                                                                               | Desktop                               | Phone                               |
 | --------------------------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------- |
@@ -275,13 +276,21 @@ the findings rest on their own text, reviews, bug reports and design write-ups.
 
 ## Getting there
 
-Nothing in the running site uses this yet. The order to build it in:
+The stylesheet is one file, `packages/react/src/table.css`. The site imports it
+from `apps/web/app/globals.css` and the mockups link it directly.
 
-1. Move the tokens from `table.css` into the Tailwind theme in `apps/web`, and
-   wrap every page in the room, table and felt.
-2. Restyle the shared entry screen and lobby in `packages/react` with paper,
-   plaque, seats and buttons. Every game gets the look from this step alone.
+Done:
+
+1. The room, table and felt wrap every page, and the tokens are the custom
+   properties in `table.css`.
+2. The shared entry screen, lobby, disconnected state and banners in
+   `packages/react` use paper, plaque, seats and buttons. Every game gets the
+   look from this step alone.
+3. (half) Tic-tac-toe is restyled as the template.
+
+Not done:
+
 3. Export the pieces (`Card`, `Token`, `Pile`, `Paper`, `Button`) from
    `packages/react` so games compose them and do not restyle their own.
-4. Restyle tic-tac-toe as the template, then build ONO on the shared pieces.
+4. (other half) Build ONO on the shared pieces.
 5. Add the sound and reduced-motion settings to the shell.

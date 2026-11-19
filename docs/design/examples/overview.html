@@ -4,18 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Design example: overview</title>
-<link rel="stylesheet" href="table.css">
+<link rel="stylesheet" href="../../../packages/react/src/table.css">
 <style>
 
-.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: clamp(12px, 3vw, 22px); }
-.box { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: 12px; overflow: hidden; background: var(--paper); box-shadow: 0 4px 0 var(--paper-edge), 0 14px 20px rgb(0 0 0 / 0.4); }
-.box:nth-child(odd) { transform: rotate(-0.8deg); } .box:nth-child(3n) { transform: rotate(1deg); }
-.cover { --c: var(--p2); aspect-ratio: 4 / 3; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c), #fff 20%), var(--c)); }
-.cover .card { --card-w: 38px; } .cover .token { width: 36px; height: 36px; font-size: 1rem; }
-.box .info { padding: 10px 12px 12px; } .box h3 { font-size: 1.05rem; } .box p { margin: 2px 0 0; font-size: 0.8rem; color: var(--ink-soft); }
 .box.soon { opacity: 0.6; }
 .join { width: min(100%, 400px); }
-.grid3 { display: grid; grid-template-columns: repeat(3, 16px); gap: 3px; } .grid3 b { width: 16px; height: 16px; border-radius: 3px; background: rgb(255 255 255 / 0.85); }
 
 </style>
 </head>
