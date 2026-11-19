@@ -1,0 +1,207 @@
+name: Preview
+
+# Per-PR preview deployments (see "Preview deployments" in docs/deployment.md).
+#
+# For an open PR from a branch in this repo that has the `preview` label, this runs the CI checks
+# and then pushes two images built from the PR's head commit:
+#
+#   ghcr.io/ianwijma/games-web:pr-<n>-<head sha>     NEXT_PUBLIC_RELAY_URL=wss://games-relay-pr-<n>.wijma.cloud/ws
+#   ghcr.io/ianwijma/games-relay:pr-<n>-<head sha>
+#
+# The homelab's Argo CD ApplicationSet (pull request generator, same label) builds these exact tags
+# from its {{number}} and {{head_sha}}, so do not change the format without changing it there.
+# It then keeps one sticky comment on the PR up to date. Removing the label updates the comment;
+# closing or merging the PR also deletes every pr-<n>-* image version.
+#
+# Security: only collaborators can add labels, and fork PRs are ignored entirely. Never switch this
+# to pull_request_target: it would run PR code with write access to this repo.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, closed]
+
+# One group per PR for every event that matters, so a new push, a label removal or closing the PR
+# cancels a build still running. Events that do not matter (another label, a PR without the label)
+# get a group of their own so they never cancel anything.
+concurrency:
+  group: >-
+    ${{
+      github.event.pull_request.head.repo.full_name == github.repository && (
+        github.event.action == 'closed' ||
+        (contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) && github.event.label.name == 'preview') ||
+        (contains(fromJSON('["opened", "synchronize", "reopened"]'), github.event.action) &&
+         contains(github.event.pull_request.labels.*.name, 'preview'))
+      ) && format('preview-{0}', github.event.pull_request.number) || format('preview-ignored-{0}', github.run_id)
+    }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  LABEL: preview
+  MARKER: "<!-- games-preview -->"
+  PR: ${{ github.event.pull_request.number }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  checks:
+    # Same-repo PRs only; open; and either just labelled `preview` or a new commit on a labelled PR.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' && (
+        (github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+        (contains(fromJSON('["opened", "synchronize", "reopened"]'), github.event.action) &&
+         contains(github.event.pull_request.labels.*.name, 'preview'))
+      )
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        image: [games-relay, games-web]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The head commit, not the merge commit: the tag names the head SHA.
+          ref: ${{ env.HEAD_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/build-image
+        with:
+          image: ${{ matrix.image }}
+          sha: ${{ env.HEAD_SHA }}
+          tags: pr-${{ env.PR }}-${{ env.HEAD_SHA }}
+          relay-url: wss://games-relay-pr-${{ env.PR }}.wijma.cloud/ws
+          # The label makes a preview's digest differ from any develop image built from the same
+          # commit, so deleting a preview version can never delete a develop one.
+          labels: cloud.wijma.games.preview=pr-${{ env.PR }}
+          # One manifest per tag and no untagged attestation versions, so cleanup is exact.
+          provenance: "false"
+          # Re-adding the label on the same commit reuses the images already pushed.
+          skip-existing: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  comment:
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Create or update the preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          short=${HEAD_SHA::7}
+          body="$MARKER
+          ### Preview
+
+          | | |
+          | --- | --- |
+          | **Site** | https://games-pr-$PR.wijma.cloud |
+          | **Relay** | \`wss://games-relay-pr-$PR.wijma.cloud/ws\` |
+          | **Commit** | [\`$short\`](https://github.com/$REPO/commit/$HEAD_SHA) |
+          | **Images** | \`ghcr.io/ianwijma/games-web:pr-$PR-$HEAD_SHA\`<br>\`ghcr.io/ianwijma/games-relay:pr-$PR-$HEAD_SHA\` |
+
+          Argo CD polls for changes, so this commit goes live about 3 to 5 minutes after this comment.
+          Every push to this PR builds a new preview and updates this comment.
+
+          The preview is deleted when this PR is closed or merged, when the \`$LABEL\` label is removed,
+          or when it expires because the head commit is too old (see *Preview deployments* in
+          \`docs/deployment.md\`)."
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\")))][0].id // empty" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+            echo "Updated comment $id"
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+            echo "Created the comment"
+          fi
+
+  removed:
+    # The label was removed, or the PR was closed: say so in the comment, if there is one.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository && (
+        github.event.action == 'closed' ||
+        (github.event.action == 'unlabeled' && github.event.label.name == 'preview')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Update the preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+        run: |
+          if [ "$ACTION" = closed ]; then
+            [ "$MERGED" = true ] && what=merged || what=closed
+            reason="this PR was $what. Its preview images have been deleted."
+          else
+            reason="the \`$LABEL\` label was removed. Add it again to bring the preview back."
+          fi
+          body="$MARKER
+          ### Preview removed
+
+          The preview for this PR was removed because $reason"
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\")))][0].id // empty" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+            echo "Updated comment $id"
+          else
+            echo "No preview comment; nothing to update"
+          fi
+
+  cleanup:
+    # Delete every pr-<n>-* version of both packages. Versions with any other tag (sha-*, develop)
+    # are never touched, and neither are untagged versions.
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [games-relay, games-web]
+    steps:
+      - name: Delete pr-${{ env.PR }}-* versions of ${{ matrix.image }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ matrix.image }}
+          OWNER: ${{ github.repository_owner }}
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+        run: |
+          [ "$OWNER_TYPE" = Organization ] && scope=orgs || scope=users
+          base="/$scope/$OWNER/packages/container/$IMAGE/versions"
+          prefix="pr-$PR-"
+          versions=$(gh api --paginate "$base?per_page=100" \
+            --jq ".[] | select(.metadata.container.tags | any(startswith(\"$prefix\"))) | [.id, (.metadata.container.tags | all(startswith(\"$prefix\"))), (.metadata.container.tags | join(\",\"))] | @tsv")
+          if [ -z "$versions" ]; then
+            echo "No $prefix* versions of $IMAGE"
+            exit 0
+          fi
+          while IFS=$'\t' read -r id only_pr tags; do
+            if [ "$only_pr" != true ]; then
+              echo "::warning::Kept $IMAGE version $id: it also has tags other than $prefix* ($tags)"
+              continue
+            fi
+            gh api -X DELETE "$base/$id"
+            echo "Deleted $IMAGE version $id ($tags)"
+          done <<< "$versions"

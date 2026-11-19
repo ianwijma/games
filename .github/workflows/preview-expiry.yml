@@ -1,0 +1,81 @@
+name: Preview expiry
+
+# Once a day, removes the `preview` label from open PRs whose head commit is older than
+# MAX_AGE_DAYS, and says so in the PR's preview comment. Argo CD then deletes the preview. Adding
+# the label again brings it back. The PR's images stay in GHCR until it is closed (preview.yml).
+#
+# A label removed by this workflow's GITHUB_TOKEN does not trigger preview.yml, which is why this
+# workflow updates the comment itself.
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: List what would expire, change nothing
+        type: boolean
+        default: true
+
+env:
+  # A preview expires when its head commit (committer date) is older than this.
+  MAX_AGE_DAYS: 7
+  LABEL: preview
+  MARKER: "<!-- games-preview -->"
+
+concurrency:
+  group: preview-expiry
+
+permissions: {}
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Expire old previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # Empty on the schedule, which means a real run.
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          cutoff=$(( $(date +%s) - MAX_AGE_DAYS * 86400 ))
+          [ "$DRY_RUN" = true ] && echo "Dry run: nothing will be changed"
+          prs=$(gh pr list --repo "$REPO" --state open --label "$LABEL" --limit 500 \
+            --json number,headRefOid,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository | not) | [.number, .headRefOid] | @tsv')
+          if [ -z "$prs" ]; then
+            echo "No open PRs with the $LABEL label"
+            exit 0
+          fi
+          while IFS=$'\t' read -r pr sha; do
+            date=$(gh api "repos/$REPO/commits/$sha" --jq .commit.committer.date)
+            if [ "$(date -d "$date" +%s)" -ge "$cutoff" ]; then
+              echo "#$pr: head ${sha::7} from $date, keeping"
+              continue
+            fi
+            if [ "$DRY_RUN" = true ]; then
+              echo "#$pr: head ${sha::7} from $date, would expire"
+              continue
+            fi
+            echo "#$pr: head ${sha::7} from $date, expiring"
+            gh api -X DELETE "repos/$REPO/issues/$pr/labels/$LABEL" > /dev/null
+            body="$MARKER
+          ### Preview expired
+
+          The preview for this PR was removed because its head commit
+          ([\`${sha::7}\`](https://github.com/$REPO/commit/$sha), $date) is more than $MAX_AGE_DAYS days old.
+          Add the \`$LABEL\` label again to bring it back. Push a new commit first, or the next daily
+          check expires it again."
+            id=$(gh api --paginate "repos/$REPO/issues/$pr/comments" \
+              --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\")))][0].id // empty" | head -n1)
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+            else
+              gh api "repos/$REPO/issues/$pr/comments" -f body="$body" > /dev/null
+            fi
+          done <<< "$prs"
