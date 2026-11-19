@@ -11,6 +11,7 @@
   "dependencies": {
     "@games/game": "*",
     "@games/net": "*",
+    "@games/ohno": "*",
     "@games/react": "*",
     "@games/tic-tac-toe": "*",
     "next": "16.4.6",

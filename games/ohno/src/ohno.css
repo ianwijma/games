@@ -1,0 +1,485 @@
+/*
+ * Ohno! table. Built on the shared vocabulary in packages/react/src/table.css (seat, token, pill,
+ * paper, slip, btn, felt-label). Everything here is prefixed `ohno-`. Designed at 360 px first.
+ */
+:root {
+  /* the four card colours; each is also paired with a shape (diamond, triangle, square, circle) */
+  --ohno-red: #d8392f;
+  --ohno-yellow: #f3c22b;
+  --ohno-green: #2e9d57;
+  --ohno-blue: #2b7fd4;
+  /* the dark face of a wild card */
+  --ohno-wild: #1d1714;
+}
+
+.ohno {
+  --card-w: 72px;
+  --ohno-peek: 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  max-width: 760px;
+  margin: 0 auto;
+  overscroll-behavior: none;
+}
+@media (min-width: 560px) {
+  .ohno {
+    --card-w: 88px;
+    --ohno-peek: 44px;
+    gap: 16px;
+  }
+}
+
+/* ---- face-up and face-down cards ---- */
+.ohno-card,
+.ohno .ohno-back {
+  display: block;
+  flex: none;
+  width: var(--card-w);
+  height: auto;
+  border-radius: calc(var(--card-w) * 0.1);
+  box-shadow: var(--lift-1);
+}
+
+/* ---- opponents: a compact row that scrolls sideways, never shrinks ---- */
+.ohno-seats {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 6px 6px;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+/* With room to spare, a full table wraps to a second row and every seat stays visible. */
+@media (min-width: 560px) {
+  .ohno-seats {
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-x: visible;
+  }
+}
+.ohno-seats::-webkit-scrollbar {
+  display: none;
+}
+.ohno-seats > li {
+  flex: none;
+  min-width: 76px;
+}
+.ohno-seats > li:first-child {
+  margin-left: auto;
+}
+.ohno-seats > li:last-child {
+  margin-right: auto;
+}
+.ohno-seat .ohno-initial {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+}
+.ohno-seat .ohno-tshape {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
+}
+.ohno-hold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+}
+.ohno-fan {
+  --card-w: 20px;
+  display: inline-flex;
+}
+.ohno-fan .ohno-back {
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+}
+.ohno-fan .ohno-back + .ohno-back {
+  margin-left: -13px;
+}
+.ohno-count {
+  min-width: 1.5ch;
+  padding: 0 8px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.4);
+  font-weight: 800;
+  text-align: center;
+}
+.ohno-catch {
+  margin-top: 2px;
+}
+
+/* ---- the middle: piles and what to match ---- */
+.ohno-mid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px 20px;
+}
+.ohno-piles {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+.ohno-pile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.ohno-pile-count {
+  min-width: 2ch;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.4);
+  font-size: 0.875rem;
+  font-weight: 800;
+  text-align: center;
+}
+.ohno-draw {
+  border-radius: calc(var(--card-w) * 0.1);
+  cursor: default;
+}
+.ohno-draw:enabled {
+  cursor: pointer;
+}
+.ohno-draw:enabled:active {
+  transform: translateY(2px);
+}
+.ohno-stack {
+  position: relative;
+  display: block;
+  width: var(--card-w);
+  aspect-ratio: 5 / 7;
+}
+.ohno-stack .ohno-back {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.ohno-stack .ohno-back:nth-child(1) {
+  transform: translate(0, 0);
+}
+.ohno-stack .ohno-back:nth-child(2) {
+  transform: translate(3px, -3px);
+}
+.ohno-stack .ohno-back:nth-child(3) {
+  transform: translate(6px, -6px);
+}
+.ohno-draw.ready .ohno-stack {
+  outline: 3px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: calc(var(--card-w) * 0.12);
+}
+.ohno-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+/* On a phone the pills sit in one row under the piles, so the hand stays on screen. */
+@media (max-width: 559px) {
+  .ohno-info {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+.ohno-info .pill {
+  margin: 0;
+  padding: 4px 14px;
+}
+.ohno-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+.ohno-colour-shape {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+/* ---- status line ---- */
+.ohno-status {
+  align-self: center;
+  max-width: 100%;
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* ---- prompts on paper ---- */
+.ohno-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 440px);
+  margin: 0 auto;
+}
+.ohno-prompt p {
+  margin: 0;
+}
+.ohno-colors {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.ohno-color-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ohno-pick);
+  color: #fff;
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.55);
+  box-shadow:
+    0 0 0 3px var(--paper),
+    0 0 0 5px var(--paper-edge),
+    0 4px 8px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+}
+.ohno-color-btn:active {
+  transform: translateY(2px);
+}
+.ohno-color-btn svg {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+
+/* ---- scores on paper ---- */
+.ohno-score {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.ohno-score caption {
+  padding-bottom: 6px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  text-align: left;
+}
+.ohno-score th,
+.ohno-score td {
+  padding: 6px 8px;
+  border-top: 2px solid var(--paper-edge);
+  font-weight: 700;
+}
+.ohno-score thead th {
+  border-top: 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.ohno-score td,
+.ohno-score thead th:not(:first-child) {
+  text-align: right;
+}
+.ohno-score-win th,
+.ohno-score-win td {
+  background: rgb(224 171 69 / 0.28);
+}
+.ohno-over .ohno-score {
+  margin-top: 2px;
+}
+
+/* ---- your hand: overlapping, scrolls sideways, never shrinks ---- */
+.ohno-mine {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ohno-mine-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 4px;
+}
+.ohno-mine-head .felt-label {
+  margin: 0;
+}
+.ohno-called {
+  padding: 2px 12px;
+  color: var(--brass);
+}
+.ohno-hand {
+  display: flex;
+  align-items: flex-end;
+  min-height: calc(var(--card-w) * 1.4 + 36px);
+  padding: 30px 8px 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.ohno-hand::-webkit-scrollbar {
+  display: none;
+}
+.ohno-hand-card {
+  position: relative;
+  flex: none;
+  width: var(--card-w);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: calc(var(--card-w) * 0.1);
+  background: none;
+  cursor: pointer;
+  transition: transform 150ms ease-out;
+}
+.ohno-hand-card + .ohno-hand-card {
+  margin-left: calc(var(--ohno-peek) - var(--card-w));
+}
+.ohno-hand-card:first-child {
+  margin-left: auto;
+}
+.ohno-hand-card:last-child {
+  margin-right: auto;
+}
+.ohno-hand-card .ohno-card {
+  pointer-events: none;
+}
+.ohno-hand-card.playable {
+  transform: translateY(-10px);
+  box-shadow: 0 0 0 3px var(--brass);
+}
+.ohno-hand-card.dim .ohno-card {
+  filter: brightness(0.68);
+}
+.ohno-hand-card.drawn {
+  outline: 2px dashed #fff;
+  outline-offset: 2px;
+}
+.ohno-hand-card.selected {
+  z-index: 3;
+  transform: translateY(-24px);
+}
+.ohno-hand-card.selected.playable {
+  box-shadow:
+    0 0 0 3px var(--brass),
+    0 10px 16px rgb(0 0 0 / 0.45);
+}
+/* A card you cannot play can still be lifted to look at it. */
+.ohno-hand-card.selected.dim .ohno-card {
+  filter: none;
+}
+.ohno-hand-card:focus-visible {
+  z-index: 4;
+}
+
+/* ---- actions near the thumb ---- */
+.ohno-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ohno-actions .btn {
+  flex: 1 1 120px;
+  min-height: 52px;
+  font-size: 1.05rem;
+}
+.ohno-actions .btn.primary {
+  flex-basis: 100%;
+}
+
+/* ---- local toggle ---- */
+.ohno-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.3);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.ohno-toggle input {
+  width: 22px;
+  min-height: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--brass);
+}
+
+/* ---- settings (lobby) ---- */
+.ohno-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ohno-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0;
+}
+.ohno-rule input {
+  flex: none;
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--brass-dark);
+}
+.ohno-rule label {
+  margin: 0;
+}
+.ohno-rule p {
+  margin: 0;
+}
+
+/* ---- cards in flight: a fixed overlay that never takes input ---- */
+.ohno-fly {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ohno-flier {
+  position: fixed;
+  aspect-ratio: 5 / 7;
+  --card-w: 100%;
+  will-change: transform, opacity;
+}
+.ohno-flier .ohno-card,
+.ohno-flier .ohno-back {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ohno-hand-card {
+    transition: none;
+  }
+  .ohno-draw:enabled:active,
+  .ohno-color-btn:active {
+    transform: none;
+  }
+  .ohno-fly {
+    display: none;
+  }
+}

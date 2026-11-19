@@ -5,6 +5,11 @@
  */
 export const catalog = [
   {
+    slug: "ohno",
+    title: "Ohno!",
+    description: "Match the colour or the figure and empty your hand first. 2 to 12 players.",
+  },
+  {
     slug: "tic-tac-toe",
     title: "Tic-tac-toe",
     description: "Three in a row wins. Two players, optional turn timer.",
