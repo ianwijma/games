@@ -10,7 +10,8 @@
     "loadtest": "tsx scripts/loadtest.ts",
     "ramp": "tsx scripts/ramp.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "restart-check": "tsx scripts/restart-check.ts"
   },
   "dependencies": {
     "@games/protocol": "*",
@@ -18,6 +19,9 @@
     "ws": "8.23.0"
   },
   "devDependencies": {
+    "@games/game": "*",
+    "@games/net": "*",
+    "@games/tic-tac-toe": "*",
     "@types/node": "^22.19.0",
     "@types/ws": "8.18.2",
     "esbuild": "0.28.2",

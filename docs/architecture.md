@@ -12,7 +12,8 @@ game continues. No WebRTC, no peer-to-peer connections, no consensus protocol.
 ```
  player A (host) ──┐
  player B ─────────┼── WebSocket ── relay ── rooms { code, peers, hostId, epoch, checkpoint, alarms }
- player C ─────────┘
+ player C ─────────┘                          │
+                                              └── snapshot file (optional), so a restart keeps the rooms
 ```
 
 ## Why this replaces what `uno-web` does
@@ -68,7 +69,8 @@ injected clock. That makes every behaviour testable in milliseconds with a fake
 clock, and lets the browser run the same code in-process (see "Local play").
 
 `apps/relay` is the thin Node shell: one HTTP server, WebSocket on `/ws`,
-`/healthz`, origin allowlist, per-IP connection cap, heartbeat pings.
+`/healthz`, origin allowlist, per-IP connection cap, heartbeat pings, and the
+snapshot file (see "Surviving a relay restart").
 
 Rules the relay enforces (the full list is the doc comments in
 `packages/protocol/src/index.ts`):
@@ -89,7 +91,47 @@ Rules the relay enforces (the full list is the doc comments in
 - **Alarms.** The host asks for a wake-up at a relay-clock time. The relay
   delivers it to whoever is host then. Turn timers survive migration and do not
   depend on browser timers.
-- **Rooms expire** 30 minutes after the last peer disconnects.
+- **Rooms expire** 30 minutes after the last peer disconnects. Time the relay
+  spent not running counts.
+
+## Surviving a relay restart
+
+Rooms live in the relay's memory. With `STATE_FILE` set, the relay also writes
+them to one file and reads it back on start, so a deploy, a crash or a node
+failure looks to players like a network drop of a few seconds: "reconnecting",
+then the same room, seat and game.
+
+- **`hub.snapshot()` and `hub.restore()`** in `relay-core` are pure: the
+  snapshot is plain JSON holding every room's code, settings, seats and resume
+  tokens, host and epoch, last checkpoint, alarms and expiry time. `apps/relay`
+  does the file I/O: every few seconds when something changed, and once more on
+  SIGTERM after it stops reading from sockets. Writes are atomic (temporary
+  file, fsync, rename).
+- **A restore is a mass disconnect.** Every seat comes back disconnected and
+  every room without a host, under a new epoch. Clients were already retrying
+  with their resume tokens; the first host-capable one to return becomes host
+  and is handed the checkpoint. Nothing new for a game: it is the same path as
+  "everyone reloads at once".
+- **Moves are neither doubled nor lost.** An action the relay had not stored
+  when it stopped was never acknowledged, so its sender resends it. An action
+  it had stored is recognised by its number in the checkpoint and not applied
+  again. A host that was in the middle of a commit comes back with no role;
+  its old epoch is refused, and it must take the checkpoint to become host.
+- **Times are absolute.** Alarms are stored with their wall-clock time. One
+  that fell due while the relay was down goes to the first host, once. Room
+  expiry counts from the real last disconnect.
+- **After a crash, the file can be a few seconds old.** Moves made since the
+  last write are gone and everyone converges on the older state. Two things
+  make clients accept that older state: a restore raises each checkpoint's
+  `seq` by `RESTORE_SEQ_GAP`, and a client takes the first view after a
+  reconnect or host change whatever its `seq`. A
+  room created or a player who joined after the last write is not in the file;
+  that client is told its seat is gone.
+- **The file has a format number and the `PROTOCOL_VERSION`.** A file with
+  another value of either, or a damaged one, is ignored: the relay logs why,
+  moves it to `<file>.rejected` and starts empty. So rooms do not survive a
+  protocol change. A single room the relay cannot use (damaged, or a game no
+  longer in `ALLOWED_GAMES`) is left out and logged; the others are restored.
 
 ## Two modes, one concept
 
@@ -172,8 +214,10 @@ a game gets them without writing anything. Each is covered by a test.
 - **Leave means leave.** After pressing Leave, a reload shows the entry screen.
 - **The owner keeps the role through a reload.** Ownership passes on only after
   the owner has been gone for 15 seconds, or has left.
-- **A turn timer keeps running** through reloads, disconnects and host changes,
-  and fires exactly once.
+- **A turn timer keeps running** through reloads, disconnects, host changes and
+  relay restarts, and fires exactly once.
+- **A relay restart is a short disconnect**, not the end of the game (when the
+  relay runs with `STATE_FILE`).
 - **A move is never applied twice and never silently lost**, including when it
   was sent while the host was changing.
 - **Nobody can join a game in progress**; seated players can always come back.
@@ -189,6 +233,8 @@ the same room in two tabs of one browser moves the seat to the newest tab, where
 A deployed relay will meet old cached clients. Three numbers guard this:
 
 - `PROTOCOL_VERSION`: relay and client must match, else `unsupported-version`.
+  A relay also ignores a snapshot file written under another version, so a
+  bump ends the rooms open at that deploy.
 - `gameVersion` (from the game definition): everyone in a room must match, else
   `game-mismatch`. Bump it when the state or action shape changes.
 - The web app serves hashed assets, so a reload always gets the current client.

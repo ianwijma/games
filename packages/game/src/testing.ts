@@ -5,14 +5,15 @@ import {
   type Transport,
   type TransportLink,
 } from "@games/net";
-import { createFakeClock, type FakeClock, Hub } from "@games/relay-core";
+import { createFakeClock, type FakeClock, Hub, type HubSnapshot } from "@games/relay-core";
 import { createSession, type Session } from "./session";
 import type { GameDefinition } from "./types";
 
 export interface Table<A, V, C> {
   /** Index = seat order. All are already joined in one room, phase "lobby". */
   sessions: Session<A, V, C>[];
-  hub: Hub;
+  /** The relay hub currently in use. A different object after `restart`. */
+  readonly hub: Hub;
   clock: FakeClock;
   /** Delivers everything queued (and microtasks) until nothing is left to do. */
   settle(): Promise<void>;
@@ -40,9 +41,26 @@ export interface Table<A, V, C> {
   reload(player: number): Promise<void>;
   /** Moves the fake clock forward and settles. */
   advance(ms: number): Promise<void>;
+  /** The hub's snapshot right now, passed through JSON (a deep copy). */
+  snapshot(): HubSnapshot;
+  /** Delivers exactly one queued delivery, then flushes microtasks. False if the queue was empty. */
+  step(): Promise<boolean>;
+  /**
+   * Simulates the relay process dying and a new one starting. The hub is snapshotted right now
+   * (without settling) unless `snapshot` is given: a stale one models a crash, `null` an empty
+   * hub, i.e. persistence lost. Everything still in flight is lost, every client sees its
+   * connection close, and connection attempts fail for `downMs` (default 1000) before the new hub
+   * restores the snapshot. Returns once every player that is not `disconnect`ed has reconnected
+   * (or been told its room is gone).
+   */
+  restart(options?: { snapshot?: HubSnapshot | null; downMs?: number }): Promise<void>;
 }
 
-/** Builds simulated players in one room on a fake clock, all in memory. Deterministic for a given seed. */
+/**
+ * Builds simulated players in one room on a fake clock, all in memory. Deterministic for a given seed.
+ * Nothing is delivered until `settle` (or a helper that settles): messages sit in a queue, so a test
+ * can interleave `step()` or `restart()` with a call that is still in flight.
+ */
 export async function createTable<S, A extends { type: string }, V, C>(
   game: GameDefinition<S, A, V, C>,
   options: { players?: number | string[]; seed?: number } = {},
@@ -51,9 +69,12 @@ export async function createTable<S, A extends { type: string }, V, C>(
   const names =
     typeof count === "number" ? Array.from({ length: count }, (_, i) => `Player ${i + 1}`) : count;
   const clock = createFakeClock();
-  const hub = new Hub({ clock });
   const queue: (() => void)[] = [];
-  const base = localTransport(hub, { defer: (deliver) => void queue.push(deliver) });
+  const defer = (deliver: () => void) => void queue.push(deliver);
+  /** The relay "process" new connections reach. Replaced by `restart`. */
+  let relay = { hub: new Hub({ clock }), base: null as unknown as Transport };
+  relay.base = localTransport(relay.hub, { defer });
+  let down = false;
 
   const settle = async () => {
     for (let idle = 0; idle < 3; ) {
@@ -69,11 +90,11 @@ export async function createTable<S, A extends { type: string }, V, C>(
   const gates = names.map(() => ({ blocked: false, link: null as TransportLink | null }));
   const transports: Transport[] = gates.map((gate) => ({
     open(handlers) {
-      if (gate.blocked) {
+      if (gate.blocked || down) {
         queue.push(() => handlers.onClose());
         return { send() {}, close() {} };
       }
-      gate.link = base.open(handlers);
+      gate.link = relay.base.open(handlers);
       return gate.link;
     },
   }));
@@ -121,9 +142,13 @@ export async function createTable<S, A extends { type: string }, V, C>(
     await settle();
   };
 
+  const jsonCopy = (snapshot: HubSnapshot): HubSnapshot => JSON.parse(JSON.stringify(snapshot));
+
   return {
     sessions,
-    hub,
+    get hub() {
+      return relay.hub;
+    },
     clock,
     settle,
     async start() {
@@ -162,6 +187,43 @@ export async function createTable<S, A extends { type: string }, V, C>(
     },
     async advance(ms) {
       clock.advance(ms);
+      await settle();
+    },
+    snapshot: () => jsonCopy(relay.hub.snapshot()),
+    async step() {
+      const next = queue.shift();
+      if (!next) return false;
+      next();
+      for (let i = 0; i < 3; i++) await Promise.resolve();
+      return true;
+    },
+    async restart(options = {}) {
+      const taken =
+        options.snapshot !== undefined ? options.snapshot : jsonCopy(relay.hub.snapshot());
+      queue.length = 0; // in-flight messages die with the process
+      for (const gate of gates) gate.link?.close();
+      relay.hub.close();
+      down = true;
+      await settle();
+      clock.advance(options.downMs ?? 1000);
+      await settle();
+      const hub = new Hub({ clock });
+      if (taken !== null) {
+        const result = hub.restore(taken);
+        if (!result.ok) throw new Error(`restore failed: ${result.reason}`);
+      }
+      relay = { hub, base: localTransport(hub, { defer }) };
+      down = false;
+      const settled = () =>
+        sessions.every((s, i) => {
+          if (gates[i]?.blocked) return true;
+          const status = s.getSnapshot().status;
+          return status === "connected" || status === "closed";
+        });
+      for (let i = 0; i < 50 && !settled(); i++) {
+        clock.advance(1); // fires the clients' retry timers
+        await settle();
+      }
       await settle();
     },
   };

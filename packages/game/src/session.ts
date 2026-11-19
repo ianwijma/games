@@ -140,6 +140,12 @@ export function createSession<S, A extends { type: string }, V, C>(
   let counter = 0;
   let pending: Pending[] = [];
   let wasReconnecting = false;
+  /**
+   * Set when the link dropped or the host changed. The next view is then taken whatever its `seq`:
+   * it comes from the current host, whose state can be older than what we saw (a relay restored
+   * from a snapshot taken before our latest view). Within one link and one host, `seq` only grows.
+   */
+  let resync = false;
 
   const rejectAll = (message: string) => {
     const all = pending;
@@ -171,7 +177,8 @@ export function createSession<S, A extends { type: string }, V, C>(
   };
 
   const onView = (message: View) => {
-    if (view && message.seq < view.seq) return;
+    if (view && message.seq < view.seq && !resync) return;
+    resync = false;
     view = message;
     counter = Math.max(counter, message.ack);
     const done = pending.filter((p) => p.n !== undefined && p.n <= message.ack);
@@ -326,6 +333,7 @@ export function createSession<S, A extends { type: string }, V, C>(
   const unsubscribe = [
     client.on("status", (status) => {
       if (status === "reconnecting") wasReconnecting = true;
+      if (status !== "connected") resync = true;
       if (status === "connected" && wasReconnecting) {
         wasReconnecting = false;
         flush(true);
@@ -343,6 +351,7 @@ export function createSession<S, A extends { type: string }, V, C>(
       refresh();
     }),
     client.on("host", (event) => {
+      resync = true;
       if (event.isHost) {
         initHost(event.checkpoint);
       } else {

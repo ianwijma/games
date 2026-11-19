@@ -12,7 +12,8 @@ import { LIMITS } from "./index";
 type Obj = Record<string, unknown>;
 
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
-const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
+/** Safe integers only: a counter beyond 2^53 cannot be incremented, compared or stored exactly. */
+const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
 const isStr = (v: unknown): v is string => typeof v === "string";
 const has = (o: Obj, k: string) => Object.hasOwn(o, k) && o[k] !== undefined;
 

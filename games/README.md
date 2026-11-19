@@ -46,7 +46,8 @@ supplies rooms, lobby, ready/start, host migration, reconnects and timers. Read
 ## Required tests
 
 All through `createTable(game, { players: n })`: `await table.start()`, `await table.act(i, action)`,
-`table.view(i)`, `await table.killHost()`, `await table.advance(ms)`. Wrap any other session call
+`table.view(i)`, `await table.killHost()`, `await table.advance(ms)`, `await table.restart()` (the relay
+process dies and comes back from its snapshot). Wrap any other session call
 in `table.run(...)`, e.g. `await table.run(table.sessions[0].configure(c))`; a bare `await` on a
 session call hangs because nothing is delivered until the table settles.
 

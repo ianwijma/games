@@ -3,7 +3,7 @@ name: Images
 # Builds the relay and site images and pushes them to GHCR, only for commits on develop that
 # passed CI. Tags: `sha-<short sha>` (immutable; the homelab pins these) and `develop` (moving,
 # for humans). There is no `latest`. Deploying is a separate, manual step in the homelab repo,
-# because a relay deploy ends every room (see docs/deployment.md).
+# because a relay deploy disconnects every player for a few seconds (see docs/deployment.md).
 
 on:
   workflow_run:

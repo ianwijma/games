@@ -154,3 +154,22 @@ describe("limits", () => {
     expect(parseClientMessage({ ...base, meta: "x".repeat(2000) })).toBeNull();
   });
 });
+
+describe("integers", () => {
+  it("refuses integers too large to count with exactly", () => {
+    const big = 2 ** 60;
+    expect(parseClientMessage({ ...create, gameVersion: big })).toBeNull();
+    expect(parseClientMessage({ t: "commit", epoch: 1, seq: big, state: 1, out: [] })).toBeNull();
+    expect(parseClientMessage({ t: "commit", epoch: big, seq: 1, state: 1, out: [] })).toBeNull();
+    expect(parseClientMessage({ t: "ping", n: big })).toBeNull();
+    expect(
+      parseClientMessage({
+        t: "commit",
+        epoch: 1,
+        seq: Number.MAX_SAFE_INTEGER,
+        state: 1,
+        out: [],
+      }),
+    ).not.toBeNull();
+  });
+});
