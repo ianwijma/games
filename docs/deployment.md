@@ -61,7 +61,9 @@ players ── WSS ───> games-relay.wijma.cloud/ws ┘                    
 There is no `latest`. Images are `linux/amd64` only, which is what the cluster
 runs. The site image is built with
 `NEXT_PUBLIC_RELAY_URL=wss://games-relay.wijma.cloud/ws`. It can also be run by
-hand from the Actions tab (`workflow_dispatch`, `develop` only).
+hand from the Actions tab (`workflow_dispatch`, `develop` only). The build
+itself (Dockerfiles, build args, labels, cache) is the composite action
+`.github/actions/build-image`, which `preview.yml` uses too.
 
 Build them locally from the repo root:
 
@@ -213,6 +215,93 @@ The site image's nginx (`apps/web/nginx.conf`) serves directory URLs
 `Location`), caches `/_next/static/*` for a year as immutable, sends
 `Cache-Control: no-cache` for everything else so a deploy is seen on reload,
 answers unknown paths with the export's `404.html`, and serves `/healthz`.
+
+## Preview deployments
+
+Any open PR from a branch in this repo can get its own copy of the site and
+relay, like Vercel's previews. The homelab's Argo CD ApplicationSet (pull
+request generator) deploys them; this repo builds the images.
+
+**To get one, add the `preview` label to the PR.** After the checks pass, a
+comment on the PR gives the addresses:
+
+| Piece | Address                                   |
+| ----- | ----------------------------------------- |
+| Site  | `https://games-pr-<n>.wijma.cloud`        |
+| Relay | `wss://games-relay-pr-<n>.wijma.cloud/ws` |
+
+`<n>` is the PR number. Each preview has its own relay with its own empty
+rooms, so it can't break games on the real site.
+
+**When it updates.** Every push to a labelled PR runs the CI checks, builds
+both images from the PR's head commit and updates the comment. Argo CD polls,
+so the new commit goes live about 3 to 5 minutes after the comment changes. A
+new push cancels a build that is still running.
+
+**When it is deleted.** Removing the label, closing the PR or merging it
+deletes the preview (Argo CD stops seeing the PR), and the comment says so.
+Closing or merging also deletes the PR's images from GHCR. Removing the label
+keeps them, so adding it back on the same commit is quick.
+
+**Expiry.** Once a day, the `preview` label is removed from every open PR
+whose head commit is more than 7 days old (committer date), and the comment
+says the preview expired. Add the label again to bring it back. Push a new
+commit first: on a commit that is still too old, the next daily run removes the
+label again.
+
+**Security.** A preview runs the PR's code in the homelab cluster under
+`wijma.cloud`, and the repo is public. Two things gate it:
+
+- Only collaborators can add labels, so nobody else can start a preview.
+- PRs from forks are ignored completely, label or not. The workflows use
+  `pull_request`, never `pull_request_target`, so fork code would never get a
+  token that can push images or write to the repo anyway.
+
+Review a PR's changes before you label it, and remember that every later push
+deploys too.
+
+### Images and the contract with the homelab
+
+| Image                          | Tag                 | Built with                                                      |
+| ------------------------------ | ------------------- | --------------------------------------------------------------- |
+| `ghcr.io/ianwijma/games-web`   | `pr-<n>-<head sha>` | `NEXT_PUBLIC_RELAY_URL=wss://games-relay-pr-<n>.wijma.cloud/ws` |
+| `ghcr.io/ianwijma/games-relay` | `pr-<n>-<head sha>` |                                                                 |
+
+`<head sha>` is the full 40-character SHA of the PR's head commit
+(`github.event.pull_request.head.sha`), not the merge commit. The
+ApplicationSet builds the same tag from its `{{number}}` and `{{head_sha}}`
+parameters, so changing the format, the hostnames or the label name means
+changing the homelab repo at the same time.
+
+Preview images are built without a provenance attestation, so each tag is
+exactly one package version, and with a `cloud.wijma.games.preview=pr-<n>`
+label, so a preview's digest never equals a `develop` image built from the
+same commit. Cleanup deletes only versions whose tags are all `pr-<n>-*`;
+`sha-*`, `develop` and untagged versions are never touched. Older commits'
+`pr-<n>-*` tags stay until the PR closes.
+
+### Workflows
+
+| File                                   | Runs on                                                                   | Does                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `.github/workflows/preview.yml`        | `pull_request`: opened, synchronize, reopened, labeled, unlabeled, closed | Runs `ci.yml`, builds and pushes both images, keeps the sticky comment, deletes `pr-<n>-*` versions on close |
+| `.github/workflows/preview-expiry.yml` | Daily at 04:17 UTC, and by hand                                           | Removes the label from PRs whose head commit is older than `MAX_AGE_DAYS` (7), updates the comment           |
+| `.github/workflows/ci.yml`             | Also `workflow_call`                                                      | The checks a preview needs to pass first                                                                     |
+| `.github/actions/build-image`          | Used by `images.yml` and `preview.yml`                                    | Builds and pushes one image                                                                                  |
+
+Run the expiry by hand from the Actions tab; the dry-run box is ticked by
+default and only lists what would expire. A label removed by the expiry
+workflow does not trigger `preview.yml` (GitHub does not start workflows from
+`GITHUB_TOKEN` events), so the expiry workflow writes the comment itself.
+
+**Deleting images needs no setup.** The cleanup deletes package versions with
+the workflow's `GITHUB_TOKEN` (`packages: write`), which needs this repo to
+have the Admin role on each package. It already has it: both packages were
+first published by this repo's workflows, and a test PR's cleanup on
+2026-11-20 deleted its versions with no extra setup. If a package is ever
+recreated another way and the cleanup fails with 403 or 404, open the
+package's settings, "Manage Actions access", and give this repo the Admin
+role.
 
 ## Rolling out a change
 
