@@ -61,14 +61,24 @@ export function GameShell({ game, relayUrl, initialCode, onCodeChange }: GameShe
   );
   const [prefill, setPrefill] = useState(initialCode ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const nextId = useRef(1);
 
   const start = (name: string, op: Op) => {
     setError(null);
+    setNotice(null);
     setRun({ id: nextId.current++, name, op });
   };
-  const exit = (message?: string, code?: string) => {
+  const exit = (message?: string, code?: string, left?: boolean) => {
     setRun(null);
+    if (left) {
+      // A room you left on purpose is gone: do not offer its code again.
+      setPrefill("");
+      setError(null);
+      setNotice("You left the game.");
+      lastRoom.set(gameId, null);
+      return;
+    }
     lastRoom.set(gameId, null);
     // A remembered room that is gone (left, or expired) is forgotten quietly: nobody asked for it.
     if (code && code === remembered) return;
@@ -96,6 +106,7 @@ export function GameShell({ game, relayUrl, initialCode, onCodeChange }: GameShe
       solo={game.definition.minPlayers === 1}
       prefillCode={prefill}
       error={error}
+      notice={notice}
       onCreate={(name) => start(name, { kind: "create" })}
       onJoin={(name, code) => start(name, { kind: "join", code })}
       onLocal={(name) => start(name, { kind: "local" })}
@@ -114,7 +125,7 @@ function Active({
   game: GameShellProps["game"];
   relayUrl: string | null;
   run: Run;
-  onExit(message?: string, code?: string): void;
+  onExit(message?: string, code?: string, left?: boolean): void;
   onCodeChange?(code: string | null): void;
 }) {
   // biome-ignore lint/suspicious/noExplicitAny: the shell is generic over every game
@@ -167,7 +178,9 @@ function Active({
   }, [code]);
 
   if (!session) return null;
-  return <Room game={game} session={session} onExit={() => onExit()} />;
+  return (
+    <Room game={game} session={session} onExit={(left) => onExit(undefined, undefined, left)} />
+  );
 }
 
 /** The room code of a session, as state, without calling useSession on a null session. */

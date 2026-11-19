@@ -28,6 +28,8 @@ export interface View {
   winner: PlayerId | "draw" | null;
   deadline: number | null;
   yourMark: Mark | null;
+  /** The three winning cells, when someone has won. */
+  line: [number, number, number] | null;
 }
 
 export const TURN_OPTIONS = [0, 15, 30, 60] as const;
@@ -42,6 +44,12 @@ const LINES = [
   [0, 4, 8],
   [2, 4, 6],
 ];
+
+const winningLine = (state: State): View["line"] => {
+  if (state.winner === null || state.winner === "draw") return null;
+  const line = LINES.find((l) => l.every((i) => state.board[i] === state.winner));
+  return (line as View["line"]) ?? null;
+};
 
 const deadlineFor = (now: number, turnSeconds: number) =>
   turnSeconds > 0 ? now + turnSeconds * 1000 : null;
@@ -102,6 +110,7 @@ export const game = defineGame<State, Action, View, Config>({
       turn: state.turn,
       winner: state.winner,
       deadline: state.deadline,
+      line: winningLine(state),
       yourMark: index === 0 ? "X" : index === 1 ? "O" : null,
     };
   },

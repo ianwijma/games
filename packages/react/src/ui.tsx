@@ -10,9 +10,19 @@ const variants = {
 export function Button({
   variant = "secondary",
   className = "",
+  size,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: keyof typeof variants }) {
-  return <button type="button" className={`${variants[variant]} ${className}`.trim()} {...props} />;
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: keyof typeof variants;
+  size?: "small";
+}) {
+  return (
+    <button
+      type="button"
+      className={`${variants[variant]}${size ? ` ${size}` : ""} ${className}`.trim()}
+      {...props}
+    />
+  );
 }
 
 /** Inputs and selects are styled by element in table.css, so this adds nothing. */

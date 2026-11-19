@@ -32,6 +32,16 @@ describe("tic-tac-toe", () => {
     expect(view.winner).toBe(view.order[0]);
     expect(table.sessions[0]?.getSnapshot().phase).toBe("ended");
     expect(table.view(0).yourMark).not.toBe(table.view(1).yourMark);
+    expect(table.view(0).line).toEqual([0, 1, 2]);
+  });
+
+  it("has no winning line while playing or after a draw", async () => {
+    const table = await started();
+    await play(table, [0, 1]);
+    expect(table.view(0).line).toBeNull();
+    await play(table, [2, 4, 3, 5, 7, 6, 8]);
+    expect(table.view(0).winner).toBe("draw");
+    expect(table.view(0).line).toBeNull();
   });
 
   it("detects a draw", async () => {

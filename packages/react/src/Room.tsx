@@ -36,7 +36,7 @@ export function Closed({
     <div className={`${cardClass} narrow flex flex-col gap-3`} role="alert">
       <h1 className="text-xl">Disconnected</h1>
       <p>{closedText[reason] ?? message ?? "The game has ended."}</p>
-      <Button variant="primary" onClick={onExit}>
+      <Button variant="primary" onClick={() => onExit()}>
         Back to start
       </Button>
     </div>
@@ -60,7 +60,7 @@ function useCopy(text: string) {
 function CopyButton({ label, text }: { label: string; text: string }) {
   const [done, copy] = useCopy(text);
   return (
-    <Button onClick={copy} aria-live="polite">
+    <Button size="small" onClick={copy} aria-live="polite">
       {done ? "Copied" : label}
     </Button>
   );
@@ -73,10 +73,11 @@ export function Room({
 }: {
   game: AnyGame;
   session: AnySession;
-  onExit(): void;
+  onExit(left?: boolean): void;
 }) {
   const snap = useSession(session);
   const [toast, setToast] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const showError = useCallback((error: unknown) => {
@@ -113,33 +114,58 @@ export function Room({
         <p role="status" className="pill">
           Connecting...
         </p>
-        <Button onClick={onExit}>Cancel</Button>
+        <Button onClick={() => onExit()}>Cancel</Button>
       </div>
     );
   }
 
   const leave = () => {
     session.leave();
-    onExit();
+    onExit(true);
   };
   const away = snap.players.filter((p) => !p.connected && !p.isYou).map((p) => p.name);
   const you = snap.players.find((p) => p.isYou);
-  const { minPlayers } = game.definition;
+  const owner = snap.players.find((p) => p.isOwner);
+  const ownerName = owner?.name ?? "the owner";
+  const { minPlayers, maxPlayers } = game.definition;
+  const reconnecting = snap.status === "reconnecting";
+  const guests = snap.players.filter((p) => !p.isOwner);
+  const readyCount = guests.filter((p) => p.ready).length;
+  const needed = minPlayers - snap.players.length;
+
+  let lobbyStatus: string;
+  if (needed > 0) {
+    lobbyStatus =
+      needed === 1 ? "Waiting for another player" : `Waiting for ${needed} more players`;
+  } else if (snap.isOwner) {
+    const waiting = guests.filter((p) => !p.ready);
+    lobbyStatus =
+      waiting.length === 0
+        ? "Everyone's ready"
+        : waiting.length === 1 && guests.length === 1
+          ? `${waiting[0]?.name} isn't ready yet`
+          : `${readyCount} of ${guests.length} ready`;
+  } else if (you) {
+    lobbyStatus = you.ready ? `Ready · waiting for ${ownerName}` : `Tell ${ownerName} you're ready`;
+  } else {
+    lobbyStatus = `Waiting for ${ownerName} to start`;
+  }
+  const openSeats = Math.max(0, Math.min(maxPlayers, 6) - snap.players.length);
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      {(snap.status === "reconnecting" || away.length > 0) && (
-        <p role="status" className="pill warn self-center">
-          {snap.status === "reconnecting"
-            ? "Connection lost. Reconnecting..."
-            : `${away.join(", ")} ${away.length === 1 ? "is" : "are"} disconnected`}
-        </p>
+    <div className="relative flex flex-1 flex-col gap-3">
+      {(reconnecting || away.length > 0) && (
+        <div className="notice-slot">
+          <p role="status" className="pill warn">
+            {reconnecting ? "Reconnecting…" : `${away.join(", ")} disconnected`}
+          </p>
+        </div>
       )}
 
       {snap.phase === "lobby" ? (
         <>
-          <div className="flex flex-col items-center gap-3 text-center">
-            <h1 className="felt-title">{game.title}</h1>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h1 className="felt-label nowrap">{game.title} · lobby</h1>
             <div className="plaque">
               <small>Invite code</small>
               <strong>{snap.code}</strong>
@@ -158,7 +184,8 @@ export function Room({
           <div className="lobby">
             <section className="printed">
               <div className="felt-label mb-3">Players</div>
-              <ul className="seats" aria-label="Players">
+              {/* biome-ignore lint/a11y/noRedundantRoles: Safari drops list semantics when list-style is none */}
+              <ul className="seats" role="list" aria-label="Players">
                 {snap.players.map((p, i) => (
                   <li key={p.id} className="seat">
                     <div
@@ -173,12 +200,29 @@ export function Room({
                       role="img"
                       aria-label={p.connected ? "connected" : "disconnected"}
                     />
-                    <span className="tag">{p.name}</span>
-                    {p.isYou && <Badge>you</Badge>}
-                    {p.isOwner && <Badge>owner</Badge>}
-                    <span className={`state${p.ready ? "" : " wait"}`}>
-                      {p.ready ? "Ready" : "Not ready"}
+                    <span className="tag">
+                      <span className="name">{p.name}</span>
+                      {(p.isYou || !p.connected) && (
+                        <span className="suffix">
+                          {p.isYou ? " · you" : ""}
+                          {p.connected ? "" : " · away"}
+                        </span>
+                      )}
                     </span>
+                    {p.isOwner ? (
+                      <span className="state host">Host</span>
+                    ) : (
+                      <span className={`state${p.ready ? "" : " wait"}`}>
+                        {p.ready ? "✓ Ready" : "Not ready"}
+                      </span>
+                    )}
+                  </li>
+                ))}
+                {Array.from({ length: openSeats }, (_, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: open seats are interchangeable
+                  <li key={`open-${i}`} className="seat" aria-hidden="true">
+                    <div className="token empty">+</div>
+                    <span className="tag">Open</span>
                   </li>
                 ))}
               </ul>
@@ -193,50 +237,48 @@ export function Room({
                     disabled={!snap.isOwner}
                     onChange={(config: unknown) => quiet(session.configure(config))}
                   />
-                  {!snap.isOwner && <p className="muted">Only the owner can change settings.</p>}
+                  {!snap.isOwner && <p className="muted">Only {ownerName} can change these.</p>}
                 </fieldset>
               </section>
             )}
           </div>
 
           <p className="pill self-center" role="status">
-            {snap.players.length < minPlayers
-              ? `Waiting for ${minPlayers - snap.players.length} more player${minPlayers - snap.players.length === 1 ? "" : "s"} to join.`
-              : snap.isOwner
-                ? "You can start the game now."
-                : "Waiting for the owner to start."}
+            {lobbyStatus}
           </p>
 
-          <div className="row actions mt-auto">
+          <div className="row actions sticky-bar mt-auto">
             <Button variant="danger" onClick={leave}>
               Leave
             </Button>
             <span className="grow" />
-            {you ? (
+            {you && !snap.isOwner && (
               <Button
-                variant={!snap.isOwner && !you.ready ? "primary" : "secondary"}
+                variant={you.ready ? "secondary" : "primary"}
                 aria-pressed={you.ready}
                 onClick={() => quiet(session.setReady(!you.ready))}
               >
-                {you.ready ? "Not ready" : "I'm ready"}
+                {you.ready ? "Undo ready" : "I'm ready"}
               </Button>
-            ) : (
-              <p className="pill">The game is full; you are watching.</p>
             )}
+            {!you && <p className="pill">The game is full; you are watching.</p>}
             {snap.isOwner && (
               <Button
                 variant="primary"
-                disabled={snap.players.length < minPlayers}
+                disabled={needed > 0}
                 onClick={() => quiet(session.start())}
               >
-                Start
+                {needed > 0 ? `Start (needs ${minPlayers} players)` : "Start"}
               </Button>
             )}
           </div>
         </>
       ) : (
         <>
-          <div className="stage flex flex-1 flex-col gap-4">
+          <div
+            className={`stage flex flex-1 flex-col justify-center gap-4${reconnecting ? " dimmed" : ""}`}
+            inert={reconnecting}
+          >
             <game.Board
               view={snap.view}
               me={snap.me}
@@ -250,15 +292,20 @@ export function Room({
             />
           </div>
           <div className="row actions center">
-            {snap.phase === "ended" && !snap.isOwner && (
-              <p className="pill">Waiting for the owner to return to the lobby.</p>
-            )}
-            <Button variant="danger" onClick={leave}>
-              Leave
-            </Button>
-            {snap.phase === "ended" && snap.isOwner && (
-              <Button variant="primary" onClick={() => quiet(session.backToLobby())}>
-                Back to lobby
+            {confirmLeave && snap.phase === "playing" ? (
+              <>
+                <span className="pill">Leave the game?</span>
+                <Button onClick={() => setConfirmLeave(false)}>Stay</Button>
+                <Button variant="danger" onClick={leave}>
+                  Leave
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="danger"
+                onClick={() => (snap.phase === "playing" ? setConfirmLeave(true) : leave())}
+              >
+                Leave
               </Button>
             )}
           </div>
@@ -275,8 +322,4 @@ export function Room({
       )}
     </div>
   );
-}
-
-function Badge({ children }: { children: string }) {
-  return <span className="tag">{children}</span>;
 }
