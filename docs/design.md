@@ -125,18 +125,18 @@ These are requirements, not suggestions.
 
 The vocabulary every game shares. Names match the classes in `table.css`.
 
-| Component                              | Looks like                                  | Use it for                                             |
-| -------------------------------------- | ------------------------------------------- | ------------------------------------------------------ |
-| `table` + `felt`                       | Wood rail around green cloth                | The frame of every page                                |
-| `paper` (and `slip`, slightly rotated) | A cream card or note                        | Forms, settings, scores, rules, dialogs                |
-| `plaque`                               | An engraved brass plate                     | The invite code                                        |
-| `btn`                                  | A raised cream tile that sinks when pressed | Actions. `primary` is brass, `danger` is outlined red. |
-| `token`                                | A round game piece with an initial          | A player. Ring = their turn. Grey = away.              |
-| `seat`                                 | Token, name tag, status                     | Players in a lobby or around a table                   |
-| `card`                                 | A cream-edged playing card                  | Cards. `back`, `playable` (raised, brass edge), `dim`  |
-| `pile`                                 | A few cards stacked                         | Draw and discard piles                                 |
-| `printed` and `felt-label`             | Pale lines and capitals on the cloth        | Grouping and labelling areas of the table              |
-| `box` (overview only)                  | A game box seen from above                  | One game in the catalogue                              |
+| Component                              | Looks like                                  | Use it for                                                                     |
+| -------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------ |
+| `table` + `felt`                       | Wood rail around green cloth                | The frame of every page                                                        |
+| `paper` (and `slip`, slightly rotated) | A cream card or note                        | Forms, settings, scores, rules, dialogs                                        |
+| `plaque`                               | An engraved brass plate                     | The invite code                                                                |
+| `btn`                                  | A raised cream tile that sinks when pressed | Actions. `primary` is brass, `danger` is outlined red.                         |
+| `token`                                | A round game piece with an initial          | A player. Ring = their turn. Grey = away.                                      |
+| `seat`                                 | Token, name tag, status                     | Players in a lobby or around a table                                           |
+| `card`                                 | A cream-edged playing card                  | Cards. `playable` (raised, brass edge), `dim`. Face-down cards use `CardBack`. |
+| `pile`                                 | A few cards stacked                         | Draw and discard piles                                                         |
+| `printed` and `felt-label`             | Pale lines and capitals on the cloth        | Grouping and labelling areas of the table                                      |
+| `box` (overview only)                  | A game box seen from above                  | One game in the catalogue                                                      |
 
 Before inventing a new component, check whether one of these is the right
 physical object.
@@ -180,13 +180,29 @@ reading anything.
   6 and 9 are underlined. It reads from a 28 px strip in a fanned hand.
 - **A shape per colour as an optional setting** (diamond, triangle, square,
   circle under the corner figure), for players who cannot tell red from green.
-- **The back** is a burgundy lattice with a brass ring.
+- **The back** is the site's shared card back (see "Logo and card back").
 
 What is deliberately not copied from the best-known game of this kind: its card
 layout (the tilted white oval), its lettering, its logo and its card back. The
 colours and symbols are common to the genre; that layout is theirs.
 
 Still open: the wordmark for the game's box and title screen.
+
+## Logo and card back
+
+Chosen on 2026-11-19. Both are components in `@games/react`, so no game
+redraws them.
+
+- **The logo** (`Logo`, and `apps/web/app/icon.svg` for the browser tab) is a
+  table seen from above with an invite code on it: five seats taken and the
+  sixth open, marked with a plus. It says what the site is for: there is a seat
+  for you, and the code gets you into it.
+- **The card back** (`CardBack`) is near-black with the logo repeated faintly
+  across it, a brass frame, and one full logo in a brass ring. It is shown in
+  the ONO example above.
+- **Every card game uses this back.** A game draws its own only for a specific
+  reason, such as two decks that must be told apart face-down. Dark was chosen
+  on purpose: a bright back is easy to mistake for a face-up card.
 
 ## When a game leaves the table
 

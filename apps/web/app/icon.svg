@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="felt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f8f63"/>
+      <stop offset="1" stop-color="#175239"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="94" height="94" rx="22" fill="url(#felt)" stroke="#6e4527" stroke-width="6"/>
+  <g transform="translate(50 50) scale(0.66) translate(-50 -50)">
+    <rect x="22" y="32" width="56" height="36" rx="18" fill="#e0ab45"/>
+    <circle cx="36.5" cy="50" r="3.4" fill="#154a34"/>
+    <circle cx="45.5" cy="50" r="3.4" fill="#154a34"/>
+    <circle cx="54.5" cy="50" r="3.4" fill="#154a34"/>
+    <circle cx="63.5" cy="50" r="3.4" fill="#154a34"/>
+    <circle cx="36" cy="21" r="7.5" fill="#fffaf0"/>
+    <circle cx="36" cy="79" r="7.5" fill="#fffaf0"/>
+    <circle cx="64" cy="79" r="7.5" fill="#fffaf0"/>
+    <circle cx="11" cy="50" r="7.5" fill="#fffaf0"/>
+    <circle cx="89" cy="50" r="7.5" fill="#fffaf0"/>
+    <circle cx="64" cy="21" r="7.5" fill="none" stroke="#e0ab45" stroke-width="2.6"/>
+    <path d="M60.4 21 H67.6 M64 17.4 V24.6" stroke="#e0ab45" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

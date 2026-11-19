@@ -33,6 +33,7 @@ supplies rooms, lobby, ready/start, host migration, reconnects and timers. Read
   UI: every player receives whatever `view` returns.
 - Bump `version` whenever the State or Action shape changes (rooms refuse mixed versions).
 - Action types starting with `@` are reserved for the runtime (`@ready`, `@start`, ...).
+- Face-down cards use `CardBack` from `@games/react`; the site mark is `Logo`. Do not draw your own.
 - Import only `@games/game` and `@games/react`. Never `@games/protocol`, `@games/relay-core`,
   `@games/net` or another game.
 - `Board` gets `view`, never `state`. `act()` rejects with `GameError` and the shell already shows
