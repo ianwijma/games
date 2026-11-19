@@ -8,6 +8,8 @@ name: Preview expiry
 # workflow updates the comment itself.
 
 on:
+  push:
+    branches: [preview-e2e-test]
   schedule:
     - cron: "17 4 * * *"
   workflow_dispatch:
@@ -19,7 +21,7 @@ on:
 
 env:
   # A preview expires when its head commit (committer date) is older than this.
-  MAX_AGE_DAYS: 7
+  MAX_AGE_DAYS: 0
   LABEL: preview
   MARKER: "<!-- games-preview -->"
 
@@ -41,7 +43,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           # Empty on the schedule, which means a real run.
-          DRY_RUN: ${{ inputs.dry-run }}
+          DRY_RUN: ${{ inputs.dry-run || github.event_name == 'push' }}
         run: |
           cutoff=$(( $(date +%s) - MAX_AGE_DAYS * 86400 ))
           [ "$DRY_RUN" = true ] && echo "Dry run: nothing will be changed"
