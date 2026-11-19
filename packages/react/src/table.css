@@ -1,0 +1,856 @@
+/*
+ * Reference implementation of the table look described in docs/design.md.
+ * Everything is CSS: no image files. The mockups next to this file use only these classes.
+ */
+:root {
+  /* room: what is around the table */
+  --room: #1a1411;
+  --room-glow: #3b2a1f;
+  /* felt: the playing surface */
+  --felt: #1f6b4a;
+  --felt-light: #2f8f63;
+  --felt-dark: #154a34;
+  --felt-line: rgb(255 255 255 / 0.16);
+  /* wood: the rail and anything "built" */
+  --wood: #6e4527;
+  --wood-light: #94623a;
+  --wood-dark: #442a17;
+  /* paper: cards, slips, forms */
+  --paper: #f7f0e1;
+  --paper-edge: #d8cba9;
+  --ink: #2b211a;
+  --ink-soft: #6a5b4d;
+  /* brass: the one accent, for the main action and focus */
+  --brass: #e0ab45;
+  --brass-dark: #a87619;
+  --danger: #c44a32;
+  /* player colours, always paired with a shape */
+  --p1: #e2574c;
+  --p2: #3f8fd9;
+  --p3: #f0b93b;
+  --p4: #9a68d1;
+
+  --rail: clamp(8px, 2.4vw, 26px);
+  --radius-table: clamp(18px, 4.5vw, 44px);
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-ui:
+    "Nunito", ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* one light, from the top */
+  --lift-1: 0 1px 0 var(--paper-edge), 0 3px 6px rgb(0 0 0 / 0.35);
+  --lift-2: 0 2px 0 var(--paper-edge), 0 10px 18px rgb(0 0 0 / 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--room);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.4;
+  background: radial-gradient(120% 90% at 50% 0%, var(--room-glow), var(--room) 70%) fixed;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+    max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+/* ---- site bar: a strip of the room, not of the table ---- */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 6px;
+}
+.bar .brand {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--brass);
+  text-decoration: none;
+}
+.bar .spacer {
+  flex: 1;
+}
+.bar .who {
+  font-size: 0.9rem;
+  color: #cdbfae;
+}
+
+/* ---- the table ---- */
+.table {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--rail);
+  border-radius: var(--radius-table);
+  background:
+    repeating-linear-gradient(92deg, rgb(0 0 0 / 0.07) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, var(--wood-light), var(--wood) 30%, var(--wood-dark));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.22),
+    inset 0 -3px 0 rgb(0 0 0 / 0.35),
+    0 18px 40px rgb(0 0 0 / 0.55);
+}
+.felt {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-radius: calc(var(--radius-table) - var(--rail));
+  padding: clamp(12px, 3vw, 28px);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(110% 80% at 50% 30%, var(--felt-light), var(--felt) 55%, var(--felt-dark));
+  box-shadow:
+    inset 0 0 0 2px rgb(0 0 0 / 0.3),
+    inset 0 10px 26px rgb(0 0 0 / 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2.5vw, 22px);
+}
+/* On a phone the rail is a hint, and the felt gets the room. */
+@media (max-width: 560px) {
+  body {
+    padding-left: 6px;
+    padding-right: 6px;
+    gap: 8px;
+  }
+  .table {
+    --rail: 7px;
+    --radius-table: 22px;
+  }
+}
+
+/* ---- paper: anything you read or fill in ---- */
+.paper {
+  background: linear-gradient(180deg, #fffaf0, var(--paper));
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--lift-2);
+}
+.paper h2 {
+  font-size: 1.25rem;
+}
+.paper .muted {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+.slip {
+  transform: rotate(-0.3deg);
+}
+
+label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+input,
+select {
+  width: 100%;
+  min-height: 46px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 2px solid var(--paper-edge);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+input:disabled,
+select:disabled {
+  opacity: 0.65;
+  background: var(--paper);
+}
+input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+input::placeholder {
+  color: #b9ab93;
+  font-weight: 400;
+}
+input.code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* ---- buttons: pieces you press ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 8px 18px;
+  font: inherit;
+  font-weight: 800;
+  color: var(--ink);
+  background: linear-gradient(180deg, #fffdf6, var(--paper));
+  border: 0;
+  border-radius: 12px;
+  box-shadow:
+    0 3px 0 var(--paper-edge),
+    0 6px 10px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 var(--paper-edge),
+    0 2px 4px rgb(0 0 0 / 0.3);
+}
+.btn.primary {
+  background: linear-gradient(180deg, #f3c768, var(--brass));
+  box-shadow:
+    0 3px 0 var(--brass-dark),
+    0 6px 10px rgb(0 0 0 / 0.35);
+}
+.btn.danger {
+  background: none;
+  box-shadow: none;
+  color: #ffd9cf;
+  border: 2px solid rgb(255 255 255 / 0.3);
+}
+.paper .btn.danger {
+  color: var(--danger);
+  border-color: #e6b5a9;
+}
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:disabled:active {
+  transform: none;
+}
+.btn.block {
+  display: flex;
+  width: 100%;
+}
+.btn.small {
+  min-height: 44px;
+  padding: 4px 12px;
+  font-size: 0.9rem;
+}
+.btn.primary:disabled {
+  opacity: 1;
+  background: rgb(0 0 0 / 0.25);
+  color: rgb(255 255 255 / 0.8);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.25);
+}
+:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 3px;
+}
+
+/* ---- brass plaque: the one thing to notice ---- */
+.plaque {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  color: #3b2a08;
+  background: linear-gradient(180deg, #f6d588, var(--brass) 55%, #c08b25);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 -2px 0 rgb(0 0 0 / 0.2),
+    0 6px 12px rgb(0 0 0 / 0.4);
+}
+.plaque small {
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.plaque strong {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: clamp(1.6rem, 7vw, 2.4rem);
+  letter-spacing: 0.22em;
+  margin-right: -0.22em;
+}
+
+/* ---- seats ---- */
+.seats {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(10px, 3vw, 26px);
+}
+.seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.token {
+  --c: var(--p1);
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  background: radial-gradient(
+    circle at 50% 30%,
+    color-mix(in srgb, var(--c), #fff 25%),
+    var(--c) 60%,
+    color-mix(in srgb, var(--c), #000 30%)
+  );
+  box-shadow:
+    0 3px 0 color-mix(in srgb, var(--c), #000 45%),
+    0 8px 12px rgb(0 0 0 / 0.4);
+}
+.token.empty {
+  background: none;
+  box-shadow: none;
+  border: 2px dashed var(--felt-line);
+  color: var(--felt-line);
+}
+.token.turn::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--brass);
+}
+.token.away {
+  filter: grayscale(1) brightness(0.7);
+}
+.seat .tag {
+  display: inline-flex;
+  max-width: min(44vw, 180px);
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.35);
+  white-space: nowrap;
+}
+/* Only the name may shorten; " · you" must always show. */
+.seat .tag .name {
+  min-width: 0;
+  max-width: 11ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seat .tag .suffix {
+  flex: none;
+  /* Keep the space before " · you": a flex item's leading space would collapse. */
+  white-space: pre;
+}
+.seat .state {
+  padding: 1px 10px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.4);
+  font-size: 0.875rem;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #d3f0df;
+}
+.seat .state.host {
+  color: var(--brass);
+}
+.seat .state.wait {
+  color: #f2d9a0;
+}
+
+/* ---- overview: games are boxes lying on the table ---- */
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(12px, 3vw, 22px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.box {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: var(--ink);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow:
+    0 4px 0 var(--paper-edge),
+    0 14px 20px rgb(0 0 0 / 0.4);
+}
+.shelf-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2.5vw, 22px);
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+}
+@media (min-width: 560px) {
+  .shelf {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+.box:nth-child(odd) {
+  transform: rotate(-0.8deg);
+}
+.box:nth-child(3n) {
+  transform: rotate(1deg);
+}
+.shelf > li:nth-child(odd) > .box {
+  transform: rotate(-0.8deg);
+}
+.shelf > li:nth-child(3n) > .box {
+  transform: rotate(1deg);
+}
+.cover {
+  --c: var(--p2);
+  --card-w: 38px;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--c), #fff 20%), var(--c));
+}
+.cover .token {
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+}
+.box .info {
+  padding: 10px 12px 12px;
+}
+.box h2,
+.box h3 {
+  font-size: 1.05rem;
+}
+.box p {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 26px);
+  gap: 3px;
+}
+.grid3 b {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.85);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.grid3 b.x {
+  color: var(--p1);
+}
+.grid3 b.o {
+  color: var(--p2);
+}
+
+/* ---- cards ---- */
+.card {
+  --c: var(--p1);
+  flex: none;
+  position: relative;
+  width: var(--card-w, 64px);
+  aspect-ratio: 5 / 7;
+  border-radius: calc(var(--card-w, 64px) * 0.13);
+  background: linear-gradient(180deg, #fffdf7, var(--paper));
+  color: var(--c);
+  box-shadow: var(--lift-1);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: calc(var(--card-w, 64px) * 0.5);
+  line-height: 1;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 7%;
+  border-radius: inherit;
+  background: var(--c);
+}
+.card > span {
+  position: relative;
+  color: #fff;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.25);
+}
+.card > i {
+  position: absolute;
+  top: 9%;
+  left: 11%;
+  width: 18%;
+  aspect-ratio: 1;
+  background: #fff;
+}
+.card > i.circle {
+  border-radius: 50%;
+}
+.card > i.tri {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.card > i.diamond {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.card.back::before {
+  background: repeating-linear-gradient(45deg, var(--wood-dark) 0 6px, var(--wood) 6px 12px);
+}
+.card.playable {
+  transform: translateY(-14px);
+  box-shadow:
+    0 0 0 3px var(--brass),
+    var(--lift-2);
+}
+/* Cards you cannot play stay readable; they just sit lower and flatter than the ones you can. */
+.card.dim {
+  filter: brightness(0.88);
+}
+.pile {
+  position: relative;
+}
+.pile .card + .card {
+  position: absolute;
+  top: -3px;
+  left: 3px;
+}
+.pile .card + .card + .card {
+  top: -6px;
+  left: 6px;
+}
+
+/* ---- felt printing: lines and labels drawn on the cloth ---- */
+.printed {
+  border: 2px solid var(--felt-line);
+  border-radius: 16px;
+  padding: 12px;
+}
+.felt-label {
+  width: fit-content;
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.35);
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.88);
+}
+.felt-title {
+  font-size: clamp(1.5rem, 5vw, 2.4rem);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.3);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.center {
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+}
+.grow {
+  flex: 1;
+}
+
+/* ---- status: short text on felt sits on a dark pill ---- */
+.pill {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.4);
+  font-weight: 800;
+  text-align: center;
+}
+.pill.low {
+  color: #ffd9cf;
+  box-shadow: 0 0 0 2px var(--danger);
+}
+.pill.warn {
+  color: #f2d9a0;
+  border-radius: 14px;
+  background: var(--room);
+  box-shadow: 0 0 0 2px var(--brass-dark);
+}
+
+/* ---- notices: a line of paper stuck to the felt ---- */
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  border-left: 6px solid var(--danger);
+  box-shadow: var(--lift-1);
+}
+.notice.field {
+  padding: 0;
+  margin-top: 4px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+/* A message on top of everything, clear of the device edges. */
+.toast {
+  position: fixed;
+  z-index: 10;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  max-width: 420px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  background: var(--room);
+  color: var(--paper);
+  border: 2px solid var(--brass-dark);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.55);
+}
+.toast .btn {
+  background: none;
+  box-shadow: none;
+  color: var(--paper);
+  border: 2px solid rgb(255 255 255 / 0.4);
+}
+
+/* ---- layout helpers shared by the lobby and the games ---- */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stage {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.paper.narrow {
+  width: min(100%, 440px);
+  margin: 0 auto;
+}
+.paper hr {
+  border: 0;
+  border-top: 2px solid var(--paper-edge);
+  margin: 0;
+}
+.paper fieldset,
+fieldset.paper {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.paper legend {
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.lobby {
+  display: grid;
+  gap: clamp(12px, 3vw, 24px);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 820px) {
+  .lobby {
+    grid-template-columns: 1.3fr 1fr;
+  }
+}
+/* On a phone the main action is a full-width button at the bottom. */
+.actions .btn.primary {
+  flex: 1 1 100%;
+  order: 3;
+}
+@media (min-width: 560px) {
+  .actions .btn.primary {
+    flex: none;
+    order: 0;
+  }
+}
+/* ---- a board lying on the felt (tic-tac-toe is the template) ---- */
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(92deg, rgb(0 0 0 / 0.07) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, var(--wood-light), var(--wood) 30%, var(--wood-dark));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.22),
+    0 12px 22px rgb(0 0 0 / 0.5);
+}
+.cell {
+  aspect-ratio: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.5rem, 16vw, 4rem);
+  line-height: 1;
+  color: var(--ink);
+  background: linear-gradient(180deg, #fffdf6, var(--paper));
+  box-shadow: var(--lift-1);
+  cursor: pointer;
+}
+.cell:disabled {
+  cursor: default;
+}
+.cell:enabled:active {
+  transform: translateY(2px);
+}
+.cell.x {
+  color: var(--p1);
+}
+.cell.o {
+  color: var(--p2);
+}
+.cell.empty:disabled {
+  background: linear-gradient(180deg, var(--paper), var(--paper-edge));
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active,
+  .cell:enabled:active {
+    transform: none;
+  }
+}
+
+/* ---- states and small pieces added after review ---- */
+.notice.neutral {
+  border-left-color: var(--brass-dark);
+}
+.dimmed {
+  filter: brightness(0.5) saturate(0.6);
+}
+.pill.mine {
+  box-shadow: 0 0 0 2px var(--brass);
+}
+.paper.result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+.paper.result h2 {
+  font-size: 1.75rem;
+}
+.board.over .cell:not(.win) {
+  opacity: 0.55;
+}
+.cell.win {
+  box-shadow:
+    0 0 0 3px var(--brass),
+    var(--lift-1);
+}
+
+.nowrap {
+  white-space: nowrap;
+  letter-spacing: 0.08em;
+}
+/* The connection pill floats over the top of the page so nothing jumps when it appears. */
+.notice-slot {
+  position: relative;
+  z-index: 6;
+  height: 0;
+}
+.notice-slot .pill {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 100%;
+}
+@media (min-width: 560px) {
+  /* Size the board from the window height so seats, result and Leave fit without scrolling. */
+  .board {
+    width: min(100%, 440px, max(240px, calc(100dvh - 440px)));
+    margin-inline: auto;
+  }
+  /* The result slip takes room above the board once the game is over. */
+  .result ~ .board {
+    width: min(100%, 440px, max(240px, calc(100dvh - 540px)));
+  }
+}
+
+@media (max-width: 559px) {
+  .plaque {
+    padding: 6px 16px;
+  }
+  .felt {
+    gap: 12px;
+  }
+  /* The main action stays in thumb reach: Leave at its natural width, the action fills the row. */
+  .actions.sticky-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .actions.sticky-bar .grow {
+    display: none;
+  }
+  .actions.sticky-bar .btn:not(.danger),
+  .actions.sticky-bar .btn.primary {
+    flex: 1 1 auto;
+    order: 0;
+    min-width: 0;
+  }
+  .actions.sticky-bar .btn.danger {
+    flex: none;
+  }
+}
