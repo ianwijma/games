@@ -184,7 +184,8 @@ them.
 - **ONO.** Changing the name is necessary but not sufficient. The card faces,
   colours-and-symbols look and the exact card set of the commercial game are
   also protected. Our card faces are designed in `design.md` ("ONO card
-  faces"): own suits, shapes, symbols and card names. The rules engine in
+  faces"): the genre's usual four colours and generic symbols, in our own
+  layout, lettering and back. The rules engine in
   `uno-web` can be ported. Two things remain: the name "ONO" is one letter from
   the original, so the wordmark must look nothing like it and a more distinct
   name is the safer choice before going public; and the deck should not be the

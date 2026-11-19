@@ -81,7 +81,8 @@ hex values.
 - **Colour is never the only signal.** Every player colour and every card colour
   is paired with a shape (circle, diamond, triangle, square). Red and green of
   similar darkness are indistinguishable to many players, and green pieces
-  vanish on green felt, so green is not a player or card colour.
+  vanish on green felt, so green is not a player colour. A card may be green
+  if it has a cream edge all round (ONO's cards do).
 - **There is no light or dark mode.** The table is the theme. It is already dark
   enough for night and has enough contrast for daylight.
 - **Red is for danger and leaving**, never for the main action.
@@ -164,25 +165,28 @@ Each card is one inline SVG, so it scales to any size and needs no image files.
 | ---------------------------------- | -------------------------------- |
 | ![](design/img/cards-desktop.webp) | ![](design/img/cards-phone.webp) |
 
-ONO is a shedding game: match the suit or the number, first to empty their hand
-wins. That family of rules is centuries old and free to use. The look is ours:
+The "Bold" design, chosen from six options on 2026-11-19. The aim: anyone who
+has played a colour-and-number shedding game can sit down and play without
+reading anything.
 
-- **Paper cards, not coloured cards.** A cream face with a thin frame in the
-  suit colour, like a traditional playing card.
-- **Four suits with names and shapes**: Ember (coral diamond), Tide (blue
-  circle), Sun (amber triangle), Dusk (violet square). The shape sits under the
-  number in the corner and carries the number in the middle.
-- **The corner is the card.** Number or symbol, then the suit shape, in dark ink
-  for contrast on every suit. 6 and 9 are underlined. It reads from a 28 px
-  strip in a fanned hand.
-- **Action cards have our own names and symbols**: Hop (the next player misses a
-  turn), Turn (play changes direction), Take 2. The name is printed on the card.
-- **Any-suit cards are dark** and show all four suit shapes: Any, and Any +4.
-- **The back** is a burgundy lattice with a brass ring holding the four shapes.
+- **Four familiar colours**: red, yellow, green, blue. The card fills with its
+  colour inside a cream edge, which is what keeps a green card visible on the
+  green felt.
+- **One huge white figure with a dark outline**, readable on all four colours,
+  yellow included.
+- **Symbols people already know**: the no-entry sign for skip, two opposite
+  arrows for reverse, +2, a four-colour wheel on a dark card for wild, and +4.
+- **The corner is the card.** The same figure, small, top-left and bottom-right.
+  6 and 9 are underlined. It reads from a 28 px strip in a fanned hand.
+- **A shape per colour as an optional setting** (diamond, triangle, square,
+  circle under the corner figure), for players who cannot tell red from green.
+- **The back** is a burgundy lattice with a brass ring.
 
-Still open: the wordmark for the game's box and title screen, and whether ONO
-gets one or two cards of its own that no other game has, which would do more
-for its identity than any styling.
+What is deliberately not copied from the best-known game of this kind: its card
+layout (the tilted white oval), its lettering, its logo and its card back. The
+colours and symbols are common to the genre; that layout is theirs.
+
+Still open: the wordmark for the game's box and title screen.
 
 ## When a game leaves the table
 
