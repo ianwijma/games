@@ -288,7 +288,6 @@ export function Board({
           <button
             type="button"
             className={`ohno-pile ohno-draw${can.draw ? " ready" : ""}`}
-            data-ohno-anchor="draw"
             disabled={!can.draw}
             aria-label={`Draw pile, ${view.drawCount} ${view.drawCount === 1 ? "card" : "cards"}${can.draw ? ". Tap to draw" : ""}`}
             onClick={() => send({ type: "draw" })}
@@ -297,13 +296,17 @@ export function Board({
               <CardBack className="ohno-back" />
               <CardBack className="ohno-back" />
               <CardBack className="ohno-back" />
+              {/* Exactly where the top card lies: flights start from here, not from the whole pile. */}
+              <span className="ohno-stack-top" data-ohno-anchor="draw" />
             </span>
             <span className="ohno-pile-count" aria-hidden="true">
               {view.drawCount}
             </span>
           </button>
-          <div className="ohno-pile" data-ohno-anchor="discard">
-            <OhnoCard card={view.top} shapes={shapes} />
+          <div className="ohno-pile">
+            <span className="ohno-top" data-ohno-anchor="discard">
+              <OhnoCard card={view.top} shapes={shapes} />
+            </span>
             <span className="ohno-pile-count">
               <span className="sr-only">Discard pile: </span>
               {view.discardCount}

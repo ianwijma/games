@@ -179,6 +179,14 @@
 .ohno-stack .ohno-back:nth-child(3) {
   transform: translate(6px, -6px);
 }
+.ohno-stack-top {
+  position: absolute;
+  inset: 0;
+  transform: translate(6px, -6px);
+}
+.ohno-top {
+  display: block;
+}
 .ohno-draw.ready .ohno-stack {
   outline: 3px solid var(--brass);
   outline-offset: 2px;
