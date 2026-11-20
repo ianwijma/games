@@ -439,7 +439,7 @@ the realistic one: the smallest container the homelab can give.
 ### What would move these numbers
 
 - **Real games will differ from the test.** State size and move rate are
-  per-game. ONO's state (108 cards, 12 players) should be near the 8 KB tested;
+  per-game. Ohno!'s state (112 cards, 12 players) should be near the 8 KB tested;
   a long board game could be several times larger.
 - **TLS and the proxy add CPU** that was not measured here.
 - **Compression would cut bandwidth several times** for JSON this repetitive,
@@ -453,17 +453,17 @@ the realistic one: the smallest container the homelab can give.
 Sizing is only trusted once it is repeated where the relay will run. All of
 these use the load test (a fixed load) or the ramp (add rooms until it fails).
 
-| Check                             | How                                                                                                                               | Pass when                                                                                                                      |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Capacity on the real server**   | Run the load test on the server itself at the planned room count and at twice that                                                | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors                                            |
-| **Through the real network path** | From outside the home network: `loadtest -- --url wss://games-relay.wijma.cloud/ws --rooms 200`                                   | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink.                                   |
-| **Upload limit**                  | `ramp -- --url wss://games-relay.wijma.cloud/ws --step 50` from outside                                                           | Note the room count; it is the real ceiling. Plan for half of it.                                                              |
-| **Memory leak**                   | `--seconds 3600` at a moderate room count                                                                                         | Relay memory is flat after the first minutes                                                                                   |
-| **Idle connections survive**      | Open a room, do nothing for 10 minutes, then move                                                                                 | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it.       |
-| **Proxy reload**                  | Reload the proxy config with a game open                                                                                          | The game continues after an automatic reconnect                                                                                |
-| **Relay restart**                 | Restart the pod with a game open (`kubectl rollout restart`), then again with `kubectl delete pod --force` mid-game               | Players see "reconnecting" and are back in the same game within seconds. After the forced kill, at most 5 s of moves are gone. |
-| **Real phones**                   | Play one full game on mobile data, lock the phone for a minute mid-game                                                           | You are back in your seat when it unlocks                                                                                      |
-| **A real game's cost**            | Once ONO is ported, record its actual state size and moves per minute and rerun with `--state-bytes` and `--move-ms` set to match | The specification table is updated with those figures                                                                          |
+| Check                             | How                                                                                                                                 | Pass when                                                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Capacity on the real server**   | Run the load test on the server itself at the planned room count and at twice that                                                  | CPU under 60% of a core, memory under half the limit, p99 under 100 ms, zero errors                                            |
+| **Through the real network path** | From outside the home network: `loadtest -- --url wss://games-relay.wijma.cloud/ws --rooms 200`                                     | p99 under 250 ms, zero errors. This is the test that includes the proxy, TLS and the uplink.                                   |
+| **Upload limit**                  | `ramp -- --url wss://games-relay.wijma.cloud/ws --step 50` from outside                                                             | Note the room count; it is the real ceiling. Plan for half of it.                                                              |
+| **Memory leak**                   | `--seconds 3600` at a moderate room count                                                                                           | Relay memory is flat after the first minutes                                                                                   |
+| **Idle connections survive**      | Open a room, do nothing for 10 minutes, then move                                                                                   | The move goes through with no reconnect. Proxies drop idle sockets at 60-100 s; the relay's 25 s ping should prevent it.       |
+| **Proxy reload**                  | Reload the proxy config with a game open                                                                                            | The game continues after an automatic reconnect                                                                                |
+| **Relay restart**                 | Restart the pod with a game open (`kubectl rollout restart`), then again with `kubectl delete pod --force` mid-game                 | Players see "reconnecting" and are back in the same game within seconds. After the forced kill, at most 5 s of moves are gone. |
+| **Real phones**                   | Play one full game on mobile data, lock the phone for a minute mid-game                                                             | You are back in your seat when it unlocks                                                                                      |
+| **A real game's cost**            | Once Ohno! is ported, record its actual state size and moves per minute and rerun with `--state-bytes` and `--move-ms` set to match | The specification table is updated with those figures                                                                          |
 
 When running the load test over the internet, the `MAX_CONN_PER_IP` cap applies
 to the machine running it. Raise the cap for the test and put it back after.

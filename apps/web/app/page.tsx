@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { catalog } from "../src/catalog";
+import { Cover } from "./Cover";
 
 export default function Home() {
   return (
@@ -13,19 +14,7 @@ export default function Home() {
         {catalog.map((game) => (
           <li key={game.slug}>
             <Link href={`/${game.slug}/`} className="box">
-              <div className="cover">
-                <div className="grid3" aria-hidden="true">
-                  <b className="x">X</b>
-                  <b className="o">O</b>
-                  <b className="x">X</b>
-                  <b />
-                  <b className="x">X</b>
-                  <b className="o">O</b>
-                  <b />
-                  <b />
-                  <b className="o">O</b>
-                </div>
-              </div>
+              <Cover slug={game.slug} />
               <div className="info">
                 <h2>{game.title}</h2>
                 <p>{game.description}</p>

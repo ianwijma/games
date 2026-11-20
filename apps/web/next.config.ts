@@ -9,6 +9,7 @@ const config: NextConfig = {
   transpilePackages: [
     "@games/react",
     "@games/tic-tac-toe",
+    "@games/ohno",
     "@games/game",
     "@games/net",
     "@games/protocol",

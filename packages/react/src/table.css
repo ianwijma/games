@@ -292,6 +292,8 @@ input.code {
   font-size: clamp(1.6rem, 7vw, 2.4rem);
   letter-spacing: 0.22em;
   margin-right: -0.22em;
+  user-select: all;
+  -webkit-user-select: all;
 }
 
 /* ---- seats ---- */

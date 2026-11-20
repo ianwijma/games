@@ -9,6 +9,7 @@ type AnyModule = GameModule<any, any, any, any>;
  * Every game has its own dynamic import, so its code lives in its own chunk.
  */
 const loaders: Record<Slug, () => Promise<AnyModule>> = {
+  ohno: () => import("@games/ohno").then((m) => m.ohno),
   "tic-tac-toe": () => import("@games/tic-tac-toe").then((m) => m.ticTacToe),
 };
 

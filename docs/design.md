@@ -8,8 +8,8 @@ This is the default for every game. A game may depart from it (see "When a game
 leaves the table"), but it should do so on purpose.
 
 Status: the table look is live on the site's pages, the shared entry screen and
-lobby, and tic-tac-toe. The shared pieces are not exported as components yet and
-ONO is not built. See "Getting there" at the end.
+lobby, tic-tac-toe and Ohno!. The shared pieces are not exported as components
+yet. See "Getting there" at the end.
 
 ## Examples
 
@@ -83,7 +83,7 @@ hex values.
   is paired with a shape (circle, diamond, triangle, square). Red and green of
   similar darkness are indistinguishable to many players, and green pieces
   vanish on green felt, so green is not a player colour. A card may be green
-  if it has a cream edge all round (ONO's cards do).
+  if it has a cream edge all round (Ohno!'s cards do).
 - **There is no light or dark mode.** The table is the theme. It is already dark
   enough for night and has enough contrast for daylight.
 - **Red is for danger and leaving**, never for the main action.
@@ -156,7 +156,7 @@ physical object.
 - **Sound is off until the player turns it on**, and every game uses the same
   toggle.
 
-## ONO card faces
+## Ohno! card faces
 
 The first real game's cards, built on the rules above. Open
 [`design/examples/cards.html`](design/examples/cards.html) to see them live.
@@ -187,6 +187,10 @@ What is deliberately not copied from the best-known game of this kind: its card
 layout (the tilted white oval), its lettering, its logo and its card back. The
 colours and symbols are common to the genre; that layout is theirs.
 
+The faces live in `games/ohno/src/Card.tsx`. The deck is our own 112 cards (two
+of every number and action per colour, four of each wild), and the call on your
+last card is "Oh no!".
+
 Still open: the wordmark for the game's box and title screen.
 
 ## Logo and card back
@@ -200,7 +204,7 @@ redraws them.
   for you, and the code gets you into it.
 - **The card back** (`CardBack`) is near-black with the logo repeated faintly
   across it, a brass frame, and one full logo in a brass ring. It is shown in
-  the ONO example above.
+  the Ohno! example above.
 - **Every card game uses this back.** A game draws its own only for a specific
   reason, such as two decks that must be told apart face-down. Dark was chosen
   on purpose: a bright back is easy to mistake for a face-up card.
@@ -292,5 +296,7 @@ Not done:
 
 3. Export the pieces (`Card`, `Token`, `Pile`, `Paper`, `Button`) from
    `packages/react` so games compose them and do not restyle their own.
-4. (other half) Build ONO on the shared pieces.
+4. (other half) Ohno! is built (`games/ohno`), but with its own card component
+   and stylesheet, since the shared pieces are not exported yet. Move it onto
+   them once step 3 is done.
 5. Add the sound and reduced-motion settings to the shell.

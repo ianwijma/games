@@ -193,15 +193,15 @@ them.
 
 ## 8. Names and artwork
 
-- **ONO.** Changing the name is necessary but not sufficient. The card faces,
-  colours-and-symbols look and the exact card set of the commercial game are
-  also protected. Our card faces are designed in `design.md` ("ONO card
-  faces"): the genre's usual four colours and generic symbols, in our own
-  layout, lettering and back. The rules engine in
-  `uno-web` can be ported. Two things remain: the name "ONO" is one letter from
-  the original, so the wordmark must look nothing like it and a more distinct
-  name is the safer choice before going public; and the deck should not be the
-  original's exact 108-card list.
+- **Ohno!** (`games/ohno`, rebuilt from `uno-web`). A new name is necessary but
+  not sufficient: the card faces, the colours-and-symbols look and the exact
+  card set of the commercial game are also protected. So the card faces are our
+  own (`design.md`, "Ohno! card faces": the genre's usual four colours and
+  generic symbols, in our own layout, lettering and back), the deck is our own
+  112-card list, not the original's 108, and the call on your last card is
+  "Oh no!". The rules are the genre's and came across from `uno-web`. Still
+  open: a wordmark for the box and title screen, which must look nothing like
+  the original's.
 - **Soap Tank.** `open-bubble-tank` describes itself as a reconstruction of a
   specific commercial game, with tooling that imports the original game file.
   A new name does not change what it is. To live on this platform it needs to

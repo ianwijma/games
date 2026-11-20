@@ -2,6 +2,7 @@
 import { GameError, type Session } from "@games/game";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { inviteLink } from "./code";
+import { copyText } from "./copy";
 import type { GameModule } from "./types";
 import { Button, cardClass } from "./ui";
 import { useSession } from "./useSession";
@@ -43,25 +44,27 @@ export function Closed({
   );
 }
 
+type CopyState = "idle" | "done" | "failed";
+
 function useCopy(text: string) {
-  const [done, setDone] = useState(false);
+  const [state, setState] = useState<CopyState>("idle");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const copy = () => {
-    navigator.clipboard
-      ?.writeText(text)
-      .then(() => {
-        setDone(true);
-        setTimeout(() => setDone(false), 1500);
-      })
-      .catch(() => {});
+    void copyText(text).then((ok) => {
+      setState(ok ? "done" : "failed");
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setState("idle"), ok ? 1500 : 3000);
+    });
   };
-  return [done, copy] as const;
+  return [state, copy] as const;
 }
 
 function CopyButton({ label, text }: { label: string; text: string }) {
-  const [done, copy] = useCopy(text);
+  const [state, copy] = useCopy(text);
   return (
     <Button size="small" onClick={copy} aria-live="polite">
-      {done ? "Copied" : label}
+      {state === "done" ? "Copied" : state === "failed" ? "Could not copy" : label}
     </Button>
   );
 }
@@ -238,6 +241,15 @@ export function Room({
                     onChange={(config: unknown) => quiet(session.configure(config))}
                   />
                   {!snap.isOwner && <p className="muted">Only {ownerName} can change these.</p>}
+                </fieldset>
+              </section>
+            )}
+
+            {game.Preferences && (
+              <section className="paper slip">
+                <fieldset className="flex flex-col gap-2">
+                  <legend>On this device</legend>
+                  <game.Preferences />
                 </fieldset>
               </section>
             )}
