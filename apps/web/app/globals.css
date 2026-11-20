@@ -8,3 +8,9 @@
 :root {
   color-scheme: dark;
 }
+
+/* The drawn picture on a game box (Cover.tsx). */
+.cover-art {
+  width: 78%;
+  height: auto;
+}

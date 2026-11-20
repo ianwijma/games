@@ -17,8 +17,9 @@ supplies rooms, lobby, ready/start, host migration, reconnects and timers. Read
    `@games/react`) and, if the game has settings, `src/Settings.tsx`.
 5. `src/index.ts` exports a `GameModule` (definition, title, description, Board, Settings). Keep the
    `exports["./game"]` entry in `package.json`: it lets logic be imported without React.
-6. Register it in the web app, in two places: `apps/web/src/catalog.ts` (slug, title,
-   description; plain strings) and `apps/web/src/games.ts` (a dynamic `import()`). Add
+6. Register it in the web app, in three places: `apps/web/src/catalog.ts` (slug, title,
+   description; plain strings), `apps/web/src/games.ts` (a dynamic `import()`) and
+   `apps/web/app/Cover.tsx` (the picture on its box; the type checker fails until it is there). Add
    `@games/<name>` to `apps/web/package.json` dependencies and to `transpilePackages` in
    `apps/web/next.config.ts`, then `npm install`.
 

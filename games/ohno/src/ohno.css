@@ -483,3 +483,55 @@
     display: none;
   }
 }
+
+/* ---- phones: the hand and its buttons must fit under the piles without scrolling ---- */
+@media (max-width: 559px) {
+  .ohno {
+    gap: 8px;
+  }
+  .ohno-seats {
+    padding-top: 8px;
+    padding-bottom: 2px;
+  }
+  /* Card count and score share one row under the name. */
+  .ohno-seat {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: center;
+    justify-items: center;
+    align-items: center;
+    gap: 3px 6px;
+  }
+  .ohno-seat > .token,
+  .ohno-seat > .tag,
+  .ohno-seat > .state.host,
+  .ohno-seat > .ohno-catch {
+    grid-column: 1 / -1;
+  }
+  .ohno-seat > .token {
+    width: 46px;
+    height: 46px;
+    font-size: 1.15rem;
+  }
+  .ohno-hold {
+    min-height: 26px;
+  }
+  .ohno-mid {
+    --card-w: 62px;
+    gap: 8px 20px;
+  }
+  .ohno-hand {
+    min-height: calc(var(--card-w) * 1.4 + 32px);
+    padding-top: 26px;
+    padding-bottom: 6px;
+  }
+  /* Whatever the screen height, the move buttons stay in reach. */
+  .ohno-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+  }
+  .ohno-actions .btn {
+    min-height: 48px;
+  }
+}
