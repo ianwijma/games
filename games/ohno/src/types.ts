@@ -49,6 +49,11 @@ export interface HouseRules {
   mustPlayDrawn: boolean;
   /** A player on one card who has not called "Oh no!" can be caught and draws two. */
   callPenalty: boolean;
+  /**
+   * The player hit by a +4 may challenge it. Off: they simply draw four and miss the turn. A +4 can
+   * be played on anything either way.
+   */
+  challengeWildFour: boolean;
 }
 
 export type Goal =
@@ -67,7 +72,13 @@ export interface Config {
 export const DEFAULT_CONFIG: Config = {
   turnSeconds: 30,
   goal: { mode: "points", target: 500 },
-  rules: { stackDrawTwo: false, drawUntilPlayable: false, mustPlayDrawn: false, callPenalty: true },
+  rules: {
+    stackDrawTwo: false,
+    drawUntilPlayable: false,
+    mustPlayDrawn: false,
+    callPenalty: true,
+    challengeWildFour: false,
+  },
 };
 
 export type Action =
@@ -82,7 +93,7 @@ export type Action =
   | { type: "call" }
   /** Catch a player who is on one card and has not called. */
   | { type: "catch"; playerId: PlayerId }
-  /** Answer a +4 played on you: `true` challenges it, `false` accepts and draws four. */
+  /** Answer a +4 played on you (house rule): `true` challenges it, `false` accepts and draws four. */
   | { type: "challenge"; challenge: boolean }
   /** Deal the next round. Any seated player may do it while the phase is "round-over". */
   | { type: "nextRound" };
@@ -151,7 +162,7 @@ export interface State {
   pendingDraw: number;
   /** A wild opened the round and this player must choose the colour before anyone plays. */
   pendingWild: PlayerId | null;
-  /** A +4 waits for its target (the current player) to accept or challenge. `illegal` is secret. */
+  /** House rule: a +4 waits for its target (the current player) to accept or challenge. `illegal` is secret. */
   challenge: { offenderId: PlayerId; targetId: PlayerId; illegal: boolean } | null;
   /** The player who just went down to one card and can be caught until the next move (another player's call does not close the window). */
   catchable: PlayerId | null;

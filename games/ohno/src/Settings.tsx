@@ -26,6 +26,12 @@ const RULES: { key: keyof HouseRules; title: string; detail: string }[] = [
     title: "Catch a missed Oh no!",
     detail: "Anyone can catch a player on one card who forgot to call, and they draw two.",
   },
+  {
+    key: "challengeWildFour",
+    title: "Challenge a +4",
+    detail:
+      "The player hit by a +4 may challenge it. If the one who played it also held a card in the colour to match, they draw the four instead. If not, the challenger draws six.",
+  },
 ];
 
 function targetOptions(goal: Goal): number[] {

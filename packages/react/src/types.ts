@@ -23,4 +23,9 @@ export interface GameModule<S, A extends { type: string }, V, C> {
   Board: ComponentType<GameProps<A, V, C>>;
   /** Optional settings editor shown in the lobby; `disabled` for everyone but the owner. */
   Settings?: ComponentType<{ config: C; onChange(config: C): void; disabled: boolean }>;
+  /**
+   * Optional per-device options (colour-blind aids, sound), shown to every player in the lobby.
+   * They are the player's own: the component stores them itself and nothing is sent to the room.
+   */
+  Preferences?: ComponentType;
 }

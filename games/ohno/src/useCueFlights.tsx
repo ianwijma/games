@@ -24,9 +24,16 @@ interface Flight {
 }
 
 const DURATION = 260;
+/** Between the cards of a deal: quick, the count does not matter. */
 const STAGGER = 50;
+/** Between drawn cards: slow enough to count them as they leave the pile. */
+export const DRAW_GAP = 500;
+/** When a drawn card reaches the hand, measured from the start of its flight. */
+export const DRAW_LANDS = DURATION - 40;
+/** A draw shows at most this many cards one by one; the rest arrive with the last. */
+export const MAX_DRAW_FLIGHTS = 10;
 const MAX_FLIGHTS = 14;
-const GIVE_UP_MS = 2000;
+const GIVE_UP_MS = 1500;
 
 function Flier({
   flight,
@@ -71,7 +78,8 @@ function Flier({
 
 /**
  * Animates the events of `cue` while the table is mounted: a played card flies from its player to
- * the discard pile, draws and deals fly face-down cards from the draw pile to the player. The
+ * the discard pile, draws and deals fly face-down cards from the draw pile to the player. Drawn
+ * cards leave the pile one at a time, `DRAW_GAP` apart, so everyone can count them. The
  * first cue seen (mount, restore, reload) is only recorded. Only transform and opacity move, nothing
  * runs under prefers-reduced-motion, and the overlay never takes pointer events. Elements are found
  * through `data-ohno-anchor` attributes inside `rootRef`.
@@ -127,11 +135,14 @@ export function useCueFlights(
     };
 
     const made: Flight[] = [];
+    // Plays and deals follow each other closely; drawn cards wait for the one before.
+    let clock = 0;
     const add = (
       card: Card | null,
       natural: DOMRect,
       start: { x: number; y: number; scale: number },
       end: { x: number; y: number; scale: number; opacity: number },
+      gap: number,
     ) => {
       if (made.length >= MAX_FLIGHTS) return;
       const c = centre(natural);
@@ -145,8 +156,9 @@ export function useCueFlights(
         width: natural.width,
         from: { dx: start.x - c.x, dy: start.y - c.y, scale: start.scale, opacity: 1 },
         to: { dx: end.x - c.x, dy: end.y - c.y, scale: end.scale, opacity: end.opacity },
-        delay: made.length * STAGGER,
+        delay: clock,
       });
+      clock += gap;
     };
 
     for (const event of cue.events) {
@@ -161,6 +173,7 @@ export function useCueFlights(
           discardRect,
           { ...start, scale: mine ? 0.9 : 0.4 },
           { ...end, scale: 1, opacity: 1 },
+          STAGGER,
         );
       } else if (event.kind === "draw" || event.kind === "deal") {
         const to = seatRect(event.playerId);
@@ -168,12 +181,15 @@ export function useCueFlights(
         const end = centre(to);
         const mine = event.playerId === latest.current.me;
         const start = centre(drawRect);
-        for (let i = 0; i < Math.min(event.count, 6); i++) {
+        const slow = event.kind === "draw";
+        const shown = Math.min(event.count, slow ? MAX_DRAW_FLIGHTS : 6);
+        for (let i = 0; i < shown; i++) {
           add(
             null,
             drawRect,
             { ...start, scale: 1 },
             { ...end, scale: mine ? 0.9 : 0.35, opacity: 0.2 },
+            slow ? DRAW_GAP : STAGGER,
           );
         }
       }
@@ -182,10 +198,13 @@ export function useCueFlights(
 
     setFlights((current) => [...current, ...made]);
     const keys = new Set(made.map((f) => f.key));
-    const timer = setTimeout(() => {
-      timers.current.delete(timer);
-      setFlights((current) => current.filter((f) => !keys.has(f.key)));
-    }, GIVE_UP_MS);
+    const timer = setTimeout(
+      () => {
+        timers.current.delete(timer);
+        setFlights((current) => current.filter((f) => !keys.has(f.key)));
+      },
+      clock + DURATION + GIVE_UP_MS,
+    );
     timers.current.add(timer);
   }, [cue, rootRef]);
 

@@ -235,13 +235,18 @@ function playCard(s: State, run: Run, actor: PlayerId, cardId: string, color: Co
       advance(s, run);
     }
   } else if (card.value === "wild4") {
-    // An illegal +4 stays playable so the bluff/challenge rule works.
     advance(s, run);
-    s.challenge = {
-      offenderId: actor,
-      targetId: currentId(s),
-      illegal: previousHand.some((c) => c.color === previousColor),
-    };
+    if (s.rules.challengeWildFour) {
+      // An illegal +4 stays playable so the bluff/challenge rule works.
+      s.challenge = {
+        offenderId: actor,
+        targetId: currentId(s),
+        illegal: previousHand.some((c) => c.color === previousColor),
+      };
+    } else {
+      draw(s, run, currentId(s), 4);
+      advance(s, run);
+    }
   } else {
     advance(s, run);
   }
@@ -449,16 +454,23 @@ function validateConfig(config: unknown): Config {
     return fail("Invalid goal");
   }
   if (!isObject(rules)) return fail("Invalid house rules");
-  const { stackDrawTwo, drawUntilPlayable, mustPlayDrawn, callPenalty } = rules;
+  const { stackDrawTwo, drawUntilPlayable, mustPlayDrawn, callPenalty, challengeWildFour } = rules;
   if (
     typeof stackDrawTwo !== "boolean" ||
     typeof drawUntilPlayable !== "boolean" ||
     typeof mustPlayDrawn !== "boolean" ||
-    typeof callPenalty !== "boolean"
+    typeof callPenalty !== "boolean" ||
+    typeof challengeWildFour !== "boolean"
   ) {
     return fail("Invalid house rules");
   }
-  const cleanRules: HouseRules = { stackDrawTwo, drawUntilPlayable, mustPlayDrawn, callPenalty };
+  const cleanRules: HouseRules = {
+    stackDrawTwo,
+    drawUntilPlayable,
+    mustPlayDrawn,
+    callPenalty,
+    challengeWildFour,
+  };
   return { turnSeconds: turnSeconds as TurnSeconds, goal: cleanGoal, rules: cleanRules };
 }
 
@@ -466,7 +478,7 @@ function validateConfig(config: unknown): Config {
 
 export const game = defineGame<State, Action, View, Config>({
   id: "ohno",
-  version: 1,
+  version: 2,
   minPlayers: 2,
   maxPlayers: 12,
   defaultConfig: DEFAULT_CONFIG,

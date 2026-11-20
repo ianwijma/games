@@ -63,7 +63,7 @@ function fixture(
   s.drawnCardId = null;
   s.catchable = null;
   s.called = [];
-  s.rules = { ...s.rules, callPenalty: false, ...rules };
+  s.rules = { ...s.rules, callPenalty: false, challengeWildFour: true, ...rules };
   Object.assign(s, patch);
   return s;
 }
@@ -604,6 +604,30 @@ describe("deadline handler", () => {
     expect(s.cue.events).toEqual([{ kind: "turn", playerId: "p1" }]);
   });
 
+  it("without the challenge rule a +4 is taken at once: target draws four and misses the turn", () => {
+    let s = fixture([["null:wild4", "red:1"], ["yellow:1"], ["blue:8"]], "red:5", {
+      challengeWildFour: false,
+    });
+    s = play(s, "wild4", "green");
+    expect(s.challenge).toBeNull();
+    expect(s.hands.p1).toHaveLength(5);
+    expect(s.activeColor).toBe("green");
+    expect(s.turn).toBe(2);
+    expect(s.cue.events).toContainEqual({ kind: "draw", playerId: "p1", count: 4 });
+    expect(game.view(s, "p1").can.answerChallenge).toBe(false);
+    rejects(() => act(s, "p2", { type: "challenge", challenge: true }), /No \+4/);
+  });
+
+  it("without the challenge rule a final +4 still makes the next player draw before scoring", () => {
+    const s = play(
+      fixture([["null:wild4"], ["yellow:1"], ["blue:8"]], "red:5", { challengeWildFour: false }),
+      "wild4",
+      "green",
+    );
+    expect(s.winnerId).toBe("p0");
+    expect(s.hands.p1).toHaveLength(5);
+  });
+
   it("a timed-out challenge target accepts and draws four; a final +4 then finishes", () => {
     const s = fire(
       play(fixture([["null:wild4"], ["yellow:1"], ["blue:8"]], "red:5", {}, timed), "wild4"),
@@ -819,6 +843,7 @@ describe("full games through the table", () => {
       drawUntilPlayable: true,
       mustPlayDrawn: true,
       callPenalty: true,
+      challengeWildFour: true,
     };
     const table = await started(4, config({ goal: { mode: "rounds", target: 1 }, rules }));
     await playOut(table);

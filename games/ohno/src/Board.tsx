@@ -4,12 +4,13 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import { COLOR_SHAPE, COLOR_VAR, OhnoCard, type Shape, ShapeIcon } from "./Card";
 import "./ohno.css";
 import { Scoreboard } from "./Scoreboard";
+import { useShapes } from "./shapes";
 import { COLOR_NAMES, cardLabel, noteText, sortHand, type Who } from "./text";
 import type { Action, Card, Color, Config, SeatView, View } from "./types";
 import { COLORS } from "./types";
+import { useArrivals } from "./useArrivals";
 import { useCueFlights } from "./useCueFlights";
 
-const SHAPES_KEY = "ohno:shapes";
 const SEAT_COLORS = ["var(--p1)", "var(--p2)", "var(--p3)", "var(--p4)"];
 const SEAT_SHAPES: Shape[] = ["diamond", "triangle", "square", "circle"];
 
@@ -22,27 +23,6 @@ function useCountdown(deadline: number | null, serverNow: () => number) {
     return () => clearInterval(timer);
   }, [deadline, serverNow]);
   return deadline === null ? null : Math.max(0, Math.ceil((deadline - now) / 1000));
-}
-
-/** "Colour shapes" is a per-browser preference; storage may be missing or blocked. */
-function useShapes() {
-  const [shapes, setShapes] = useState(false);
-  useEffect(() => {
-    try {
-      setShapes(window.localStorage.getItem(SHAPES_KEY) === "1");
-    } catch {
-      // No storage: the default stays.
-    }
-  }, []);
-  const update = useCallback((on: boolean) => {
-    setShapes(on);
-    try {
-      window.localStorage.setItem(SHAPES_KEY, on ? "1" : "0");
-    } catch {
-      // Not saved; still applies for this visit.
-    }
-  }, []);
-  return [shapes, update] as const;
 }
 
 function ColorChooser({
@@ -157,12 +137,13 @@ export function Board({
   serverNow,
 }: GameProps<Action, View, Config>) {
   const rootRef = useRef<HTMLElement>(null);
-  const [shapes, setShapes] = useShapes();
+  const [shapes] = useShapes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
   const playing = phase === "playing" && view.phase === "playing";
   const seconds = useCountdown(playing ? view.deadline : null, serverNow);
   const flights = useCueFlights(rootRef, view.cue, me, shapes);
+  const arrivals = useArrivals(view.cue, view.hand, me);
 
   const hand = useMemo(() => sortHand(view.hand), [view.hand]);
   const { can } = view;
@@ -447,13 +428,21 @@ export function Board({
             {hand.map((card) => {
               const playable = myTurn && view.playable.includes(card.id);
               const isSelected = selectedId === card.id;
+              const arrives = arrivals.get(card.id);
               return (
                 <button
                   key={card.id}
                   type="button"
                   className={`ohno-hand-card${playable ? " playable" : ""}${
                     myTurn && !playable ? " dim" : ""
-                  }${isSelected ? " selected" : ""}${view.drawnCardId === card.id ? " drawn" : ""}`}
+                  }${isSelected ? " selected" : ""}${view.drawnCardId === card.id ? " drawn" : ""}${
+                    arrives === undefined ? "" : " arriving"
+                  }`}
+                  style={
+                    arrives === undefined
+                      ? undefined
+                      : ({ "--ohno-arrive": `${arrives}ms` } as CSSProperties)
+                  }
                   aria-pressed={isSelected}
                   aria-label={`${cardLabel(card)}${playable ? ", playable" : ""}${
                     view.drawnCardId === card.id ? ", just drawn" : ""
@@ -465,7 +454,8 @@ export function Board({
               );
             })}
           </div>
-          {(playSelected || can.pass || can.draw || can.call) && (
+          {/* Always there while playing, so the table does not jump when buttons come and go. */}
+          {playing && (
             <div className="ohno-actions">
               {playSelected && selected && (
                 <button type="button" className={cls("play")} onClick={() => play(selected)}>
@@ -503,11 +493,6 @@ export function Board({
           )}
         </div>
       )}
-
-      <label className="ohno-toggle">
-        <input type="checkbox" checked={shapes} onChange={(e) => setShapes(e.target.checked)} />
-        <span>Show a shape on each colour</span>
-      </label>
     </section>
   );
 }

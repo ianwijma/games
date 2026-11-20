@@ -14,7 +14,10 @@ supplies rooms, lobby, ready/start, host migration, reconnects and timers. Read
 3. Write `src/game.test.ts` with `createTable` from `@games/game/testing` (see below). Run
    `npm test -w @games/<name>` until green. Do not start on the UI before this passes.
 4. Write `src/Board.tsx` (`"use client"`, props `GameProps<Action, View, Config>` from
-   `@games/react`) and, if the game has settings, `src/Settings.tsx`.
+   `@games/react`) and, if the game has settings, `src/Settings.tsx`. Options that belong to one
+   player's device (a colour-blind aid, say) go in a `Preferences` component instead: the lobby
+   shows it to everyone under "On this device", and it stores its own value. Keep such options off
+   the board.
 5. `src/index.ts` exports a `GameModule` (definition, title, description, Board, Settings). Keep the
    `exports["./game"]` entry in `package.json`: it lets logic be imported without React.
 6. Register it in the web app, in three places: `apps/web/src/catalog.ts` (slug, title,

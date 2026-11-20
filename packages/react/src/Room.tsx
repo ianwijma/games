@@ -244,6 +244,15 @@ export function Room({
                 </fieldset>
               </section>
             )}
+
+            {game.Preferences && (
+              <section className="paper slip">
+                <fieldset className="flex flex-col gap-2">
+                  <legend>On this device</legend>
+                  <game.Preferences />
+                </fieldset>
+              </section>
+            )}
           </div>
 
           <p className="pill self-center" role="status">
