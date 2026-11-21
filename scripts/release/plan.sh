@@ -100,7 +100,7 @@ if [[ "$last_tag" == none ]]; then range=HEAD; else range="${last_tag}..HEAD"; f
   if (( ${#blockers[@]} )); then
     for b in "${blockers[@]}"; do echo "- ❌ ${b}"; done
   else
-    echo "- ✅ None. Approve the \`release\` environment under **Review deployments** to continue, or reject it to stop."
+    echo "- ✅ None. The run continues by itself once the checks are green. Cancel the run to stop it."
   fi
   echo
   echo "### Changes since \`${last_tag}\`"
