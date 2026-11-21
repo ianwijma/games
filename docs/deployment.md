@@ -9,8 +9,11 @@ Status as of 2026-11-20:
   with a game open; see "Relay state file").
 - **Observed on the real path:** the headers the relay sees behind the tunnel
   (see "Client IP behind the tunnel").
-- **Planned, in the homelab repo:** the Kubernetes manifests, DNS and the Argo
-  CD app. Nothing is serving players yet.
+- **Running, from the homelab repo:** the Kubernetes manifests, DNS and the
+  Argo CD app. The site and the relay are live. The relay there does not set
+  `STATE_FILE` yet, so a relay restart still ends every room.
+- **Releases:** the Release workflow versions, publishes and, for a stable
+  release, deploys both images. See [releasing.md](releasing.md).
 
 The sizing numbers are measured, on one development machine, and need
 repeating on the real server (see "Validating").
@@ -53,17 +56,18 @@ players ── WSS ───> games-relay.wijma.cloud/ws ┘                    
 `.github/workflows/images.yml` builds both images after CI passes on a push to
 `develop`, and pushes them to GHCR:
 
-| Tag               | Meaning                                                 |
-| ----------------- | ------------------------------------------------------- |
-| `sha-<short sha>` | Immutable, one per commit. The homelab pins these.      |
-| `develop`         | Moves to the newest build. For humans; never deploy it. |
+| Tag               | Meaning                                                             |
+| ----------------- | ------------------------------------------------------------------- |
+| `sha-<short sha>` | Immutable, one per commit. For pinning a commit by hand.            |
+| `develop`         | Moves to the newest build. For humans; never deploy it.             |
+| `X.Y.Z`           | A release, pushed by `release.yml`. Production runs the newest one. |
 
 There is no `latest`. Images are `linux/amd64` only, which is what the cluster
 runs. The site image is built with
 `NEXT_PUBLIC_RELAY_URL=wss://games-relay.wijma.cloud/ws`. It can also be run by
 hand from the Actions tab (`workflow_dispatch`, `develop` only). The build
 itself (Dockerfiles, build args, labels, cache) is the composite action
-`.github/actions/build-image`, which `preview.yml` uses too.
+`.github/actions/build-image`, which `preview.yml` and `release.yml` use too.
 
 Build them locally from the repo root:
 
@@ -277,7 +281,7 @@ Preview images are built without a provenance attestation, so each tag is
 exactly one package version, and with a `cloud.wijma.games.preview=pr-<n>`
 label, so a preview's digest never equals a `develop` image built from the
 same commit. Cleanup deletes only versions whose tags are all `pr-<n>-*`;
-`sha-*`, `develop` and untagged versions are never touched. Older commits'
+`sha-*`, `develop`, release (`X.Y.Z`) and untagged versions are never touched. Older commits'
 `pr-<n>-*` tags stay until the PR closes.
 
 ### Workflows
@@ -287,7 +291,7 @@ same commit. Cleanup deletes only versions whose tags are all `pr-<n>-*`;
 | `.github/workflows/preview.yml`        | `pull_request`: opened, synchronize, reopened, labeled, unlabeled, closed | Runs `ci.yml`, builds and pushes both images, keeps the sticky comment, deletes `pr-<n>-*` versions on close |
 | `.github/workflows/preview-expiry.yml` | Daily at 04:17 UTC, and by hand                                           | Removes the label from PRs whose head commit is older than `MAX_AGE_DAYS` (7), updates the comment           |
 | `.github/workflows/ci.yml`             | Also `workflow_call`                                                      | The checks a preview needs to pass first                                                                     |
-| `.github/actions/build-image`          | Used by `images.yml` and `preview.yml`                                    | Builds and pushes one image                                                                                  |
+| `.github/actions/build-image`          | Used by `images.yml`, `preview.yml` and `release.yml`                     | Builds and pushes one image                                                                                  |
 
 Run the expiry by hand from the Actions tab; the dry-run box is ticked by
 default and only lists what would expire. A label removed by the expiry
@@ -305,11 +309,15 @@ role.
 
 ## Rolling out a change
 
-Deploying means changing the pinned `sha-…` tag in the homelab repo; Argo CD
-then rolls it out. Merging to `develop` only publishes images.
+A stable release deploys: the Release workflow pins both images at the new
+version in the homelab repo, and Argo CD rolls it out
+([releasing.md](releasing.md)). Merging to `develop` only publishes `sha-…`
+images. Both images move together, so every stable release restarts the relay
+(3 below), also when only the site changed.
 
-1. **Site only** (UI, a new game): bump the `games-web` tag. Players in a game
-   keep playing on the old code until they reload.
+1. **Site** (UI, a new game): players in a game keep playing on the old code
+   until they reload. A new game's id must be in the relay's `ALLOWED_GAMES`
+   in the homelab repo before the release.
 2. **A game's state or action shape changed**: bump that game's `version`.
    Rooms refuse to mix versions, so old tabs get "refresh to update" on their
    next join instead of corrupting a game.
@@ -322,8 +330,9 @@ then rolls it out. Merging to `develop` only publishes images.
    together. Old tabs are refused with a clear error and must reload. **This
    ends every open room**: the new relay ignores the old state file. Deploy it
    when `/healthz` shows few rooms.
-5. **Rollback**: pin the previous `sha-…` tag. Nothing to migrate. A relay
-   from before the state file ignores it and starts empty.
+5. **Rollback**: revert the `Games: deploy vX.Y.Z` commit in the homelab repo,
+   or pin any earlier `X.Y.Z` or `sha-…` tag by hand. Nothing to migrate. A
+   relay from before the state file ignores it and starts empty.
 
 ## How much server does it need?
 
