@@ -9,6 +9,8 @@ multiplayer game quick to build. npm workspaces, Turborepo, TypeScript.
 - `games/README.md`: how to add a game. Most tasks here are this.
 - `docs/design.md`: how every screen should look and behave on a phone. Read
   it before writing any UI.
+- `docs/releasing.md`: how a version is released and deployed. Never start a
+  release or push a `v*` tag yourself.
 - `docs/limitations.md`: asset budget, known limits, what is not built yet.
 - `docs/game-catalog.md`: the games the core is designed for. Add a row there
   before adding a core feature.

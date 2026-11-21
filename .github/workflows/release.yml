@@ -1,0 +1,433 @@
+name: Release
+
+# The run's title in the Actions list, e.g. "Release minor prerelease (rc) · dry run".
+# GitHub sets it at dispatch, before any job runs, so it can only use the inputs: the
+# exact versions are in the job names and the plan summary.
+run-name: Release ${{ inputs.version_bump }} ${{ inputs.release_type }}${{ inputs.release_type == 'prerelease' && format(' ({0})', inputs.prerelease_identifier) || '' }}${{ inputs.dry_run && ' · dry run' || '' }}
+
+# Run from the GitHub UI: Actions → Release → "Run workflow", pick a version bump and a
+# release type. See docs/releasing.md.
+#
+# 1. `plan` works out the new version and writes a summary of what is released now and what
+#    this run will release. It fails on blockers (e.g. the tag already exists). Then `checks`
+#    (the CI workflow) and `image-check` (both images built, not pushed) run side by side.
+#    Nothing is changed yet.
+# 2. `version` waits until all of those are green, then for approval on the `release`
+#    environment. Read the summary, then approve or reject under "Review deployments". Once
+#    approved, it commits the new version to the default branch and pushes the `vX.Y.Z` tag.
+# 3. `images` checks out that tag, builds both images and pushes them as
+#    ghcr.io/ianwijma/games-relay:X.Y.Z and ghcr.io/ianwijma/games-web:X.Y.Z.
+# 4. `release` creates the GitHub Release, with the image references and their digests at the
+#    top of the notes.
+# 5. `deploy`, for a stable release only (never a prerelease or a dry run), sets `newTag: X.Y.Z`
+#    for both images in kubernetes/apps/games/production/kustomization.yaml on the `develop`
+#    branch of ianwijma/homelab and pushes it with the HOMELAB_DEPLOY_KEY deploy key. Argo CD
+#    then rolls production to the new images. No approval of its own: the `release` approval
+#    covers it.
+#
+# A dry run stops after `version`, which commits and tags on the runner only: nothing is
+# pushed, released or deployed. The images were already built, unpushed, by `image-check`.
+#
+# If `images`, `release` or `deploy` fails, use "Re-run failed jobs": it builds the tag that
+# was already pushed and does not bump the version again; `deploy` commits nothing when
+# production already has the version.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Version bump
+        type: choice
+        required: true
+        default: patch
+        # Examples from 1.2.3 (see scripts/next-version.mjs):
+        options:
+          - patch # 1.2.4 (bug fixes)
+          - minor # 1.3.0 (new games and features, backwards compatible)
+          - major # 2.0.0 (breaking changes)
+      release_type:
+        description: Release type (prerelease = release candidate, not deployed; release = stable, deployed to production)
+        type: choice
+        required: true
+        default: prerelease
+        # prerelease: 1.2.3 + minor → 1.3.0-rc.0; run it again → 1.3.0-rc.1, ...
+        # release:    1.2.3 + minor → 1.3.0; on a candidate, 1.3.0-rc.1 + minor → 1.3.0
+        options:
+          - prerelease
+          - release
+      dry_run:
+        description: Dry run (no push, no images in the registry, no GitHub Release, no deployment)
+        type: boolean
+        required: false
+        default: true
+      prerelease_identifier:
+        description: Prerelease identifier, for prereleases only (rc → 1.3.0-rc.0)
+        type: string
+        required: false
+        default: rc
+
+permissions:
+  contents: read
+
+# One release at a time, and never cancel one halfway through. GitHub keeps one waiting run
+# per group: starting a third while one runs replaces the second.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # The same repositories as .github/actions/build-image, and the names the homelab's
+  # kustomization pins.
+  IMAGE_RELAY: ghcr.io/ianwijma/games-relay
+  IMAGE_WEB: ghcr.io/ianwijma/games-web
+
+jobs:
+  plan:
+    name: Plan release (${{ inputs.version_bump }} ${{ inputs.release_type }})
+    runs-on: ubuntu-latest
+    # Only the version and the blockers: the checks below start once this is green.
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      tag: ${{ steps.next.outputs.tag }}
+      prerelease: ${{ steps.next.outputs.prerelease }}
+    steps:
+      # Running a workflow already needs write access to the repository. This also limits
+      # releases to the logins in the RELEASE_ACTORS repository variable (space- or
+      # comma-separated), or to the repository owner when it is unset.
+      - name: Require an allowed releaser
+        env:
+          ACTOR: ${{ github.actor }}
+          ALLOWED: ${{ vars.RELEASE_ACTORS || github.repository_owner }}
+        run: |
+          set -f # no file name expansion of the list
+          for login in ${ALLOWED//,/ }; do
+            if [[ "${login,,}" == "${ACTOR,,}" ]]; then exit 0; fi
+          done
+          echo "::error::${ACTOR} may not run releases (allowed: ${ALLOWED})."
+          exit 1
+
+      - name: Require the default branch
+        # The full ref, so a tag with the branch's name does not pass.
+        if: github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          echo "::error::Releases run from '${DEFAULT_BRANCH}' only (got '${BRANCH}')."
+          exit 1
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # all tags, for the changes since the last release
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # A wrong input or an existing tag fails here, within a minute, before any of the
+      # checks start. The script has no dependencies, so there is no `npm ci`.
+      - name: Work out the new version
+        id: next
+        env:
+          BUMP: ${{ inputs.version_bump }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          PRERELEASE_IDENTIFIER: ${{ inputs.prerelease_identifier }}
+        run: |
+          # Works out the next version from package.json (tested in scripts/next-version.test.mjs).
+          version="$(node scripts/next-version.mjs "$BUMP" "$RELEASE_TYPE" "$PRERELEASE_IDENTIFIER")"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$([[ "$version" == *-* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize the release and check for blockers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.version_bump }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERSION: ${{ steps.next.outputs.version }}
+          TAG: ${{ steps.next.outputs.tag }}
+          PRERELEASE: ${{ steps.next.outputs.prerelease }}
+        run: scripts/release/plan.sh
+
+  # After the plan: the CI workflow itself (lint, checks, typecheck, tests, build), so a
+  # release is checked exactly as a push is.
+  checks:
+    name: Checks
+    needs: plan
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  # Not pushed: this shows before the approval that both images build. The `images` job
+  # builds them again from the tag, reusing these layers from the cache.
+  image-check:
+    name: Build ${{ matrix.image }} (not pushed)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [games-relay, games-web]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-image
+        with:
+          image: ${{ matrix.image }}
+          sha: ${{ github.sha }}
+          version: ${{ needs.plan.outputs.version }}
+          tags: ${{ needs.plan.outputs.version }}
+          push: "false"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  version:
+    name: Commit and tag ${{ needs.plan.outputs.tag }}
+    # Every check must be green before the approval is asked for.
+    needs: [plan, checks, image-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The approval gate: this environment has required reviewers, so the run waits here
+    # until someone has checked the plan summary and approved it.
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      # With credentials: the push below needs them.
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Bump version
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          # GitHub's documented identity for the github-actions[bot] account (41898282 is its
+          # user id), so the commit shows up as made by the bot.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Sets the approved version in the root package.json and in package-lock.json, which
+          # records it too. The workspace packages stay at 0.0.0: nothing is published to npm.
+          npm version "$VERSION" --no-git-tag-version
+          git commit -m "chore(release): ${TAG}" -- package.json package-lock.json
+          git tag -a "$TAG" -m "$TAG"
+
+      - name: Push release commit and tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          BRANCH: ${{ github.ref_name }}
+        # Atomic: either both land or neither does. It also fails if the branch moved since
+        # the run started, so only the commit that was reviewed gets released.
+        run: git push --atomic origin "HEAD:refs/heads/${BRANCH}" "refs/tags/${TAG}"
+
+  images:
+    name: Build images ${{ needs.plan.outputs.version }}
+    needs: [plan, version]
+    # A dry run ends with `version`: there is no tag to build.
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      relay-digest: ${{ steps.relay.outputs.digest }}
+      web-digest: ${{ steps.web.outputs.digest }}
+    steps:
+      - name: Check out ${{ needs.plan.outputs.tag }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+
+      - id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # One tag each, the version without the "v". No "latest", and `develop` is not moved:
+      # those are images.yml's tags (docs/deployment.md, "Images"). One job, not a matrix, so
+      # each image's digest is an output of its own.
+      - name: Build and push games-relay
+        id: relay
+        uses: ./.github/actions/build-image
+        with:
+          image: games-relay
+          sha: ${{ steps.commit.outputs.sha }}
+          version: ${{ needs.plan.outputs.version }}
+          tags: ${{ needs.plan.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push games-web
+        id: web
+        uses: ./.github/actions/build-image
+        with:
+          image: games-web
+          sha: ${{ steps.commit.outputs.sha }}
+          version: ${{ needs.plan.outputs.version }}
+          tags: ${{ needs.plan.outputs.version }}
+          relay-url: wss://games-relay.wijma.cloud/ws
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarize the images
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          RELAY_DIGEST: ${{ steps.relay.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          {
+            echo "## Images pushed"
+            echo
+            echo "| Image | Digest |"
+            echo "|---|---|"
+            echo "| \`${IMAGE_RELAY}:${VERSION}\` | \`${RELAY_DIGEST}\` |"
+            echo "| \`${IMAGE_WEB}:${VERSION}\` | \`${WEB_DIGEST}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Release ${{ needs.plan.outputs.tag }}
+    needs: [plan, images]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the GitHub Release
+    steps:
+      - name: Check out ${{ needs.plan.outputs.tag }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+
+      # On a re-run, keeps the existing release.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          RELAY_DIGEST: ${{ needs.images.outputs.relay-digest }}
+          WEB_DIGEST: ${{ needs.images.outputs.web-digest }}
+        run: scripts/release/publish.sh
+
+  # Production runs from the homelab repository: Argo CD syncs kubernetes/apps/games/production
+  # from its `develop` branch. This job pins the new images there. Prereleases and dry runs
+  # never deploy. The `release` environment approval on `version` already covers this job, so
+  # the `production` environment has no reviewers: it only holds the deploy key, limits it to
+  # the default branch, and records the deployment.
+  deploy:
+    name: Deploy ${{ needs.plan.outputs.tag }} to production
+    needs: [plan, release]
+    if: ${{ !inputs.dry_run && needs.plan.outputs.prerelease == 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://games.wijma.cloud
+    # Nothing in this repository: the push goes to ianwijma/homelab with the deploy key.
+    permissions: {}
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      KUSTOMIZATION: kubernetes/apps/games/production/kustomization.yaml
+      HOMELAB_BRANCH: develop
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      # With credentials: the ssh key stays configured for the push below. Its public half is
+      # a write deploy key on ianwijma/homelab (docs/releasing.md, "Deployment").
+      - name: Check out ianwijma/homelab
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ianwijma/homelab
+          ref: develop
+          # Full history: the summary links the last commit that changed the kustomization.
+          fetch-depth: 0
+          ssh-key: ${{ secrets.HOMELAB_DEPLOY_KEY }}
+
+      - name: Set both production image tags to ${{ needs.plan.outputs.version }}
+        id: edit
+        run: |
+          # yq (mikefarah v4) is preinstalled on ubuntu-latest. It keeps the comments.
+          tag_of() { IMAGE="$1" yq '.images[] | select(.name == strenv(IMAGE)) | .newTag' "$KUSTOMIZATION"; }
+          previous=()
+          for image in "$IMAGE_RELAY" "$IMAGE_WEB"; do
+            current="$(tag_of "$image")"
+            if [[ -z "$current" || "$current" == "null" ]]; then
+              echo "::error::${KUSTOMIZATION} has no newTag for ${image}."
+              exit 1
+            fi
+            previous+=("${image##*/}:${current}")
+            IMAGE="$image" VERSION="$VERSION" \
+              yq -i '(.images[] | select(.name == strenv(IMAGE)) | .newTag) = strenv(VERSION)' "$KUSTOMIZATION"
+            after="$(tag_of "$image")"
+            if [[ "$after" != "$VERSION" ]]; then
+              echo "::error::Could not set newTag to ${VERSION} for ${image} in ${KUSTOMIZATION} (it holds '${after}')."
+              exit 1
+            fi
+          done
+          # A re-run after the push: production already has this version.
+          if git diff --quiet -- "$KUSTOMIZATION"; then
+            echo "Production already runs ${VERSION}; nothing to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git log -1 --format=%H -- "$KUSTOMIZATION")" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff -- "$KUSTOMIZATION"
+          echo "previous=${previous[*]}" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push to ${{ env.HOMELAB_BRANCH }}
+        id: push
+        if: steps.edit.outputs.changed == 'true'
+        run: |
+          # The same identity as the `version` job.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Games: deploy ${TAG}" -m "Release run: ${RUN_URL}" -- "$KUSTOMIZATION"
+          # Someone else may push to develop meanwhile: rebase on it and try again.
+          for attempt in 1 2 3 4; do
+            if git push origin "HEAD:refs/heads/${HOMELAB_BRANCH}"; then
+              echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [[ "$attempt" == 4 ]]; then break; fi
+            echo "Push rejected (attempt ${attempt}); rebasing on ${HOMELAB_BRANCH} and retrying."
+            git pull --rebase origin "$HOMELAB_BRANCH"
+          done
+          echo "::error::Could not push to ianwijma/homelab ${HOMELAB_BRANCH} after 3 retries."
+          exit 1
+
+      - name: Summarize the deployment
+        env:
+          CHANGED: ${{ steps.edit.outputs.changed }}
+          PREVIOUS: ${{ steps.edit.outputs.previous }}
+          SHA: ${{ steps.push.outputs.sha || steps.edit.outputs.sha }}
+        run: |
+          {
+            if [[ "$CHANGED" == "true" ]]; then
+              echo "## Deployed ${TAG} to production"
+              echo
+              echo "\`${IMAGE_RELAY}:${VERSION}\` and \`${IMAGE_WEB}:${VERSION}\` (was \`${PREVIOUS}\`), in \`${KUSTOMIZATION}\` on ianwijma/homelab \`${HOMELAB_BRANCH}\`."
+              echo
+              echo "Homelab commit: https://github.com/ianwijma/homelab/commit/${SHA}"
+              echo
+              echo "Argo CD syncs it from there within a few minutes. To roll back, revert that commit."
+            else
+              echo "## Production already runs ${TAG}"
+              echo
+              echo "\`${KUSTOMIZATION}\` on ianwijma/homelab \`${HOMELAB_BRANCH}\` already pins both images at \`${VERSION}\`; nothing was committed."
+              echo
+              echo "Last homelab commit to it: https://github.com/ianwijma/homelab/commit/${SHA}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
