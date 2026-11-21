@@ -42,7 +42,9 @@ which tabs may share a room.
    - `release`: a stable version, marked as the latest release and **deployed
      to production**. `1.2.3` + `minor` → `1.3.0`.
 5. **Dry run** is ticked by default: it checks and builds everything without
-   pushing, releasing or deploying. Untick it to release for real.
+   pushing, releasing or deploying. Untick it to release for real. There is no
+   approval step after this: an unticked run releases, and a stable one
+   deploys, as soon as its checks are green.
 6. **Prerelease identifier** (default `rc`) is only used for prereleases;
    `beta` gives `1.3.0-beta.0`.
 7. Click **Run workflow**.
@@ -51,9 +53,8 @@ which tabs may share a room.
    pushed, whether production will change, any blockers, and the changes since
    the last release. Then the CI checks and the two image builds run side by
    side.
-9. When all of those are green and the plan is correct, click **Review
-   deployments**, tick `release` and **Approve and deploy**. To stop, click
-   **Reject** instead.
+9. When all of those are green the run continues by itself. To stop it, click
+   **Cancel run** while the checks are still running (about two minutes).
 10. Wait for **Build images** and **Release** to go green and check the new
     GitHub Release. For a stable release, wait for **Deploy** too: its summary
     links the homelab commit. Argo CD rolls it out within a few minutes.
@@ -95,8 +96,7 @@ change needs ([deployment.md](deployment.md), "Rolling out a change"):
   or a stable version isn't newer than the latest stable GitHub Release.
 - **Checks:** once the plan is green, the CI workflow (lint, checks, typecheck,
   tests, build) and a build of each image without push run at the same time.
-- **Version:** waits for your approval on the `release` environment, then
-  commits the new version to `develop` (`chore(release): vX.Y.Z`) and pushes a
+- **Version:** once every check is green, commits the new version to `develop` (`chore(release): vX.Y.Z`) and pushes a
   `vX.Y.Z` tag. If `develop` got new commits after the run started, it stops
   instead.
 - **Build images:** checks out the tag, builds both images and pushes them as
@@ -113,7 +113,7 @@ documents the environment variables it reads at the top.
 
 A dry run stops after **Version**, which commits and tags on the runner only.
 Nothing is pushed, released or deployed; the images were built, unpushed, by
-the checks. It still asks for the approval.
+the checks.
 
 ### If it fails
 
@@ -155,13 +155,13 @@ version (without the `v`) with `yq`, commits them as `github-actions[bot]` with
 the message `Games: deploy vX.Y.Z` and a link to the release run, and pushes to
 `develop`. The run summary links the homelab commit.
 
-| Run                                                        | Deploys?                                                                                     |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Stable release (`release`, dry run unticked), e.g. `1.3.0` | Yes, once the GitHub Release is created. No extra approval: the `release` approval covers it |
-| Prerelease, e.g. `1.3.0-rc.0`                              | No                                                                                           |
-| Dry run                                                    | No                                                                                           |
-| Push to `develop` (the `sha-…` and `develop` image tags)   | No. Those images reach production only if someone pins one by hand                           |
-| PR with the `preview` label                                | No. It gets its own preview deployment                                                       |
+| Run                                                        | Deploys?                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| Stable release (`release`, dry run unticked), e.g. `1.3.0` | Yes, once the GitHub Release is created. No approval step          |
+| Prerelease, e.g. `1.3.0-rc.0`                              | No                                                                 |
+| Dry run                                                    | No                                                                 |
+| Push to `develop` (the `sha-…` and `develop` image tags)   | No. Those images reach production only if someone pins one by hand |
+| PR with the `preview` label                                | No. It gets its own preview deployment                             |
 
 It fails if it can't find or change a `newTag`, unless the file already holds
 the version: then it commits nothing and succeeds, so a re-run is safe.
@@ -195,11 +195,10 @@ This is in place; the list is for checking it or redoing it.
 
 1. **The workflow is on `develop`.** GitHub only shows a manually started
    workflow once its file is on the default branch.
-2. **The `release` environment** (the approval gate), under **Settings →
-   Environments**: **Required reviewers** with yourself, **Prevent
-   self-review** unticked (or you can't approve your own releases), and
-   **Deployment branches and tags** limited to `develop`. Without required
-   reviewers the workflow doesn't wait for approval.
+2. **The `release` environment**, under **Settings → Environments**: no
+   reviewers, and **Deployment branches and tags** limited to `develop`. To
+   get an approval step before the version is committed, tick **Required
+   reviewers** there and add yourself (leave **Prevent self-review** unticked).
 3. **The `production` environment:** no reviewers, **Deployment branches and
    tags** limited to `develop`, and the environment secret
    `HOMELAB_DEPLOY_KEY`.

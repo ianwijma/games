@@ -12,9 +12,9 @@ run-name: Release ${{ inputs.version_bump }} ${{ inputs.release_type }}${{ input
 #    this run will release. It fails on blockers (e.g. the tag already exists). Then `checks`
 #    (the CI workflow) and `image-check` (both images built, not pushed) run side by side.
 #    Nothing is changed yet.
-# 2. `version` waits until all of those are green, then for approval on the `release`
-#    environment. Read the summary, then approve or reject under "Review deployments". Once
-#    approved, it commits the new version to the default branch and pushes the `vX.Y.Z` tag.
+# 2. `version` waits until all of those are green, then commits the new version to the
+#    default branch and pushes the `vX.Y.Z` tag. There is no approval step: untick "Dry run"
+#    only when you mean to release. Cancel the run while the checks are running to stop it.
 # 3. `images` checks out that tag, builds both images and pushes them as
 #    ghcr.io/ianwijma/games-relay:X.Y.Z and ghcr.io/ianwijma/games-web:X.Y.Z.
 # 4. `release` creates the GitHub Release, with the image references and their digests at the
@@ -22,8 +22,7 @@ run-name: Release ${{ inputs.version_bump }} ${{ inputs.release_type }}${{ input
 # 5. `deploy`, for a stable release only (never a prerelease or a dry run), sets `newTag: X.Y.Z`
 #    for both images in kubernetes/apps/games/production/kustomization.yaml on the `develop`
 #    branch of ianwijma/homelab and pushes it with the HOMELAB_DEPLOY_KEY deploy key. Argo CD
-#    then rolls production to the new images. No approval of its own: the `release` approval
-#    covers it.
+#    then rolls production to the new images.
 #
 # A dry run stops after `version`, which commits and tags on the runner only: nothing is
 # pushed, released or deployed. The images were already built, unpushed, by `image-check`.
@@ -164,7 +163,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
 
-  # Not pushed: this shows before the approval that both images build. The `images` job
+  # Not pushed: this shows before anything is tagged that both images build. The `images` job
   # builds them again from the tag, reusing these layers from the cache.
   image-check:
     name: Build ${{ matrix.image }} (not pushed)
@@ -190,12 +189,12 @@ jobs:
 
   version:
     name: Commit and tag ${{ needs.plan.outputs.tag }}
-    # Every check must be green before the approval is asked for.
+    # Every check must be green before anything is committed or tagged.
     needs: [plan, checks, image-check]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The approval gate: this environment has required reviewers, so the run waits here
-    # until someone has checked the plan summary and approved it.
+    # The environment only limits this job to the default branch. It has no required
+    # reviewers, so the run does not wait; add reviewers to it to get an approval step.
     environment: release
     permissions:
       contents: write
@@ -218,7 +217,7 @@ jobs:
           # user id), so the commit shows up as made by the bot.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Sets the approved version in the root package.json and in package-lock.json, which
+          # Sets the planned version in the root package.json and in package-lock.json, which
           # records it too. The workspace packages stay at 0.0.0: nothing is published to npm.
           npm version "$VERSION" --no-git-tag-version
           git commit -m "chore(release): ${TAG}" -- package.json package-lock.json
@@ -230,7 +229,7 @@ jobs:
           TAG: ${{ needs.plan.outputs.tag }}
           BRANCH: ${{ github.ref_name }}
         # Atomic: either both land or neither does. It also fails if the branch moved since
-        # the run started, so only the commit that was reviewed gets released.
+        # the run started, so only the commit that was checked gets released.
         run: git push --atomic origin "HEAD:refs/heads/${BRANCH}" "refs/tags/${TAG}"
 
   images:
@@ -323,9 +322,8 @@ jobs:
 
   # Production runs from the homelab repository: Argo CD syncs kubernetes/apps/games/production
   # from its `develop` branch. This job pins the new images there. Prereleases and dry runs
-  # never deploy. The `release` environment approval on `version` already covers this job, so
-  # the `production` environment has no reviewers: it only holds the deploy key, limits it to
-  # the default branch, and records the deployment.
+  # never deploy. The `production` environment has no reviewers either: it only holds the
+  # deploy key, limits it to the default branch, and records the deployment.
   deploy:
     name: Deploy ${{ needs.plan.outputs.tag }} to production
     needs: [plan, release]
